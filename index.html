@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Softball Rotation Builder</title>
+<style>
+  :root {
+    --green: #2f6b3a; --grass: #4f9d52; --grass2: #5aab5d; --dirt: #c8935a;
+    --bg: #f3f5f1; --card: #fff; --ink: #1d2a1f; --muted: #6b7a6d; --line: #e3e7e2;
+    --bad: #d64040; --badbg: #fde2e2; --off: #fff1cc; --accent: #1f6feb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: var(--green); color: #fff; padding: 10px 16px; position: sticky; top: 0; z-index: 10;
+           display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: transparent; color: #d7ecd9; border: 0; padding: 8px 12px; border-radius: 8px;
+               font: inherit; font-weight: 600; cursor: pointer; }
+  nav button.active { background: rgba(255,255,255,.2); color: #fff; }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  h3 { margin: 0 0 8px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+  .card { background: var(--card); border-radius: 12px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .muted { color: var(--muted); }
+  .small { font-size: .85rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn { font: inherit; font-size: .9rem; padding: 8px 12px; border-radius: 8px; border: 1px solid #cfd6ce;
+         background: #fff; cursor: pointer; color: var(--ink); }
+  .btn:hover:not(:disabled) { background: #f0f3ef; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.primary { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; }
+  .btn.primary:hover { background: #255a2f; }
+  .btn.danger { color: var(--bad); }
+  .icon { font: inherit; border: 0; background: transparent; cursor: pointer; padding: 4px 7px; border-radius: 6px; color: var(--muted); }
+  .icon:hover:not(:disabled) { background: #eef1ed; color: var(--ink); }
+  .icon:disabled { opacity: .25; cursor: default; }
+  input[type=text], input:not([type]), select { font: inherit; font-size: .95rem; padding: 7px 9px; border: 1px solid #cfd6ce; border-radius: 8px; background: #fff; }
+  .badge { display: inline-block; min-width: 34px; text-align: center; background: var(--green); color: #fff;
+           border-radius: 6px; padding: 2px 6px; font-size: .75rem; font-weight: 700; }
+  .banner { padding: 9px 12px; border-radius: 8px; margin-top: 10px; font-size: .9rem; }
+  .banner.bad { background: var(--badbg); color: #8a1f1f; }
+  .banner.ok { background: #e3f3e4; color: #1f5a28; }
+  .banner.info { background: #e8f0fe; color: #1a3f8a; }
+
+  /* Roster */
+  .player-list { list-style: none; margin: 0; padding: 0; }
+  .player-row { display: grid; grid-template-columns: auto 56px minmax(110px, 1fr) minmax(0, 1.4fr) auto auto auto; gap: 8px;
+                grid-template-areas: "here num name pos plat always del";
+                align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .player-row .c-here { grid-area: here; } .player-row .num { grid-area: num; } .player-row .name { grid-area: name; }
+  .player-row .pos-summary { grid-area: pos; } .player-row .c-plat { grid-area: plat; }
+  .player-row .c-always { grid-area: always; } .player-row .c-del { grid-area: del; }
+  .player-row .c-plat { font-size: .82rem; padding: 5px 6px; width: 190px; }
+  @media (max-width: 640px) { .player-row .c-plat { width: 100%; } }
+  .player-row.inactive .name, .player-row.inactive .num { color: var(--muted); text-decoration: line-through; }
+  .player-row .num { width: 56px; text-align: center; }
+  .player-row .name { min-width: 0; width: 100%; }
+  .pos-summary { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toggle { font-size: .82rem; display: flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+  @media (max-width: 640px) {
+    .player-row { grid-template-columns: auto 48px minmax(0, 1fr) auto;
+                  grid-template-areas: "here num name del" ". pos pos pos" ". plat plat always"; }
+    .player-row .num { width: 48px; }
+  }
+
+  /* Field */
+  .field-wrap { position: relative; width: 100%; max-width: 560px; aspect-ratio: 1; margin: 0 auto; }
+  .field-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .chip { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
+          min-width: 54px; max-width: 20%; padding: 3px 6px; border-radius: 10px; background: #fff; border: 2px solid #fff;
+          box-shadow: 0 2px 5px rgba(0,0,0,.25); font: inherit; font-size: .8rem; line-height: 1.15; cursor: pointer;
+          color: var(--ink); user-select: none; -webkit-user-select: none; }
+  .chip small { font-size: .62rem; font-weight: 800; color: var(--green); letter-spacing: .03em; }
+  .chip b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .chip i { font-style: normal; font-size: .62rem; color: var(--muted); white-space: nowrap; }
+  .chip.empty { background: rgba(255,255,255,.3); border: 2px dashed #fff; color: #fff; box-shadow: none; }
+  .chip.empty small { color: #fff; }
+  .chip.off { background: var(--off); border-color: var(--off); }
+  .chip.bad { background: var(--badbg); border-color: var(--bad); }
+  .chip.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,111,235,.5); }
+  .bench { margin: 12px auto 0; max-width: 560px; min-height: 64px; padding: 10px; border-radius: 12px;
+           background: #e9ece8; border: 2px dashed #cdd3cc; }
+  .bench-title { font-size: .8rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .bench .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bench .chip { position: static; transform: none; max-width: none; }
+  .hint { text-align: center; font-size: .85rem; color: var(--accent); min-height: 1.3em; margin: 6px 0 0; }
+  .field-overlay { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); width: 70%; text-align: center;
+                   background: rgba(0,0,0,.55); color: #fff; padding: 12px; border-radius: 10px; font-size: .9rem; pointer-events: none; }
+
+  /* Depth chart */
+  .depth-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .depth-grid .card { margin: 0; transition: box-shadow .3s; }
+  .depth-grid .card.flash { box-shadow: 0 0 0 3px var(--accent); }
+  .depth-grid ol { list-style: none; margin: 0 0 8px; padding: 0; }
+  .depth-grid li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .depth-grid li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .depth-grid li .nm.muted { text-decoration: line-through; }
+  .rank { width: 22px; height: 22px; border-radius: 50%; background: #eef1ed; display: inline-flex; align-items: center;
+          justify-content: center; font-size: .75rem; font-weight: 700; flex: none; }
+  .depth-grid li:first-child .rank { background: var(--green); color: #fff; }
+  .depth-grid select { width: 100%; }
+  .two-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (min-width: 980px) { .two-col { grid-template-columns: minmax(0, 560px) minmax(0, 1fr); } }
+
+  /* Game */
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+  .pill { font: inherit; font-weight: 700; width: 40px; height: 40px; border-radius: 50%; border: 2px solid #cfd6ce;
+          background: #fff; cursor: pointer; position: relative; }
+  .pill.active { background: var(--green); border-color: var(--green); color: #fff; }
+  .pill.warn::after { content: ""; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%;
+                      background: var(--bad); border: 2px solid #fff; }
+  .table-wrap { overflow-x: auto; }
+  table.grid { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  .grid th, .grid td { border: 1px solid var(--line); padding: 6px 5px; text-align: center; }
+  .grid th { background: #f5f7f4; font-size: .8rem; }
+  .grid th.inn { cursor: pointer; }
+  .grid th.cur { background: var(--green); color: #fff; }
+  .grid td.cur { box-shadow: inset 2px 0 0 var(--green), inset -2px 0 0 var(--green); }
+  .grid td.name { text-align: left; white-space: nowrap; font-weight: 600; }
+  .grid td.pos { font-weight: 600; }
+  .grid td.sit { background: #eceeec; color: var(--muted); font-size: .75rem; }
+  .grid td.sit.bad { background: var(--badbg); color: var(--bad); font-weight: 800; }
+  .grid td.off { background: var(--off); }
+  .grid td.empty { background: var(--badbg); color: var(--bad); }
+  .grid td.tot { color: var(--muted); }
+  .grid td.sitters { font-size: .75rem; color: var(--muted); }
+  .grid tr.group td { background: #f5f7f4; text-align: left; font-size: .75rem; font-weight: 700; color: var(--green);
+                      text-transform: uppercase; letter-spacing: .04em; }
+  .platoon-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #f3f7f3; font-size: .88rem; }
+  .platoon-panel p { margin: 0 0 4px; }
+  .platoon-panel ul { margin: 6px 0 0; padding-left: 18px; color: #6a4b00; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .78rem; color: var(--muted); margin-top: 8px; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; border: 1px solid #ccc; }
+  .legend .l-sit::before { background: #eceeec; }
+  .legend .l-bad::before { background: var(--badbg); border-color: var(--bad); }
+  .legend .l-off::before { background: var(--off); }
+  .seg { display: inline-flex; border: 1px solid #cfd6ce; border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: .85rem; border: 0; background: #fff; padding: 6px 10px; cursor: pointer; }
+  .seg button.active { background: var(--green); color: #fff; }
+  .status { font-size: .85rem; padding: 7px 10px; border-radius: 8px; margin-bottom: 8px; }
+  .status.ok { background: #e3f3e4; color: #1f5a28; }
+  .status.bad { background: var(--badbg); color: #8a1f1f; }
+  .status.bad summary { cursor: pointer; font-weight: 600; }
+  .status.bad ul { margin: 6px 0 2px; padding-left: 18px; max-height: 180px; overflow-y: auto; }
+  .status.note { background: #f0f2ef; color: var(--muted); }
+  .status.note summary { cursor: pointer; }
+  .status.note ul { margin: 6px 0 2px; padding-left: 18px; }
+  .inning-issues.neutral { color: var(--muted); }
+  .inning-issues { text-align: center; font-size: .82rem; color: #8a1f1f; margin: 4px 0 0; }
+  .grid td.unset { background: #fafbfa; }
+  .pill.unset { border-style: dashed; color: var(--muted); }
+  .pill.unset.active { color: #fff; }
+  .autofill { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #f3f7f3; margin-bottom: 12px; }
+  .autofill .muted { font-size: .82rem; margin-top: 2px; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; margin-top: 1px; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch span { position: absolute; inset: 0; background: #c5ccc4; border-radius: 24px; transition: .2s; cursor: pointer; }
+  .switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff;
+                         border-radius: 50%; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .switch input:checked + span { background: var(--green); }
+  .switch input:checked + span::before { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .screen-hidden { display: none; }
+  .print-only { display: none; }
+
+  /* Editable table cells: a borderless select that looks like the cell text */
+  .grid td.edit { padding: 0; }
+  select.cell { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-weight: inherit;
+                color: inherit; text-align: center; text-align-last: center; width: 100%; min-width: 44px; padding: 6px 3px;
+                cursor: pointer; border-radius: 0; }
+  select.cell:hover { background: rgba(31,111,235,.08); }
+  select.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .grid td.bat { font-weight: 800; color: var(--green); width: 44px; }
+  .grid td.bat select.cell { font-weight: 800; min-width: 40px; }
+  .table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: .82rem; }
+
+  /* Open-spot helpers for the selected inning (screen only) */
+  @media screen {
+    .grid td.hl-fill { background: var(--hl-bg) !important; color: var(--hl-fg) !important; font-weight: 700; }
+    .grid td.hl-move { outline: 2px dashed var(--hl-fg); outline-offset: -4px; }
+    .chip.hl-fill { border-color: var(--hl-fg); background: var(--hl-bg); }
+    .chip.empty.hl-open { border-color: var(--hl-fg); background: var(--hl-bg); color: var(--hl-fg); }
+    .chip.empty.hl-open small { color: var(--hl-fg); }
+  }
+  .open-help { font-size: .82rem; background: #f7f8f6; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .open-help div { margin: 2px 0; }
+  .open-tag { display: inline-block; min-width: 38px; text-align: center; font-weight: 800; border-radius: 6px; padding: 1px 6px; margin-right: 4px; }
+  .hl-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 3px 0 8px; }
+
+  @page { size: landscape; margin: .4in; }
+  @media print {
+    header, .no-print { display: none !important; }
+    body { background: #fff; }
+    main { padding: 0; max-width: none; }
+    .card { box-shadow: none; padding: 0; }
+    .two-col { display: block; }
+    .print-only { display: block; }
+    .print-only h2 { font-size: 16pt; margin: 0 0 8px; }
+    table.grid { margin-bottom: 18px; font-size: 14pt; }
+    .grid th, .grid td { padding: 7px 5px; border-color: #999; }
+    .grid td.edit { padding: 0; }
+    .grid th { font-size: 12pt; }
+    .grid td.sit { font-size: 11pt; }
+    /* Only SIT cells are shaded on paper */
+    .grid th, .grid td, .grid tr.group td { background: #fff !important; color: #000 !important; }
+    .grid td.sit { background: #d9d9d9 !important; color: #333 !important; font-weight: 400 !important; }
+    .grid td.tot { color: #555 !important; }
+    select.cell { padding: 7px 3px; }
+    .table-wrap { overflow: visible; }
+    .grid th.cur { background: #f5f7f4; color: inherit; }
+    .grid td.cur { box-shadow: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<header class="no-print">
+  <h1>🥎 Rotation Builder</h1>
+  <nav>
+    <button data-tab="roster">Roster</button>
+    <button data-tab="depth">Depth Chart</button>
+    <button data-tab="game">Game Rotation</button>
+  </nav>
+</header>
+<main>
+  <section id="tab-roster"></section>
+  <section id="tab-depth" hidden></section>
+  <section id="tab-game" hidden></section>
+</main>
+
+<script>
+// ---------- Constants ----------
+const POSITIONS = [
+  { id: 'P',   name: 'Pitcher',      x: 50, y: 82 },
+  { id: 'C',   name: 'Catcher',      x: 50, y: 96 },
+  { id: '1B',  name: 'First Base',   x: 68, y: 75 },
+  { id: '2B',  name: 'Second Base',  x: 61, y: 63 },
+  { id: 'SS',  name: 'Shortstop',    x: 39, y: 63 },
+  { id: '3B',  name: 'Third Base',   x: 32, y: 75 },
+  { id: 'LF',  name: 'Left Field',   x: 17, y: 42 },
+  { id: 'LCF', name: 'Left Center',  x: 37, y: 25 },
+  { id: 'RCF', name: 'Right Center', x: 63, y: 25 },
+  { id: 'RF',  name: 'Right Field',  x: 83, y: 42 },
+];
+const POS_IDS = POSITIONS.map(p => p.id);
+const OF_POS = ['LF', 'LCF', 'RCF', 'RF'];
+// Outfield platoons: a player comes in at `entry`, slides to `exit` the next inning, then sits.
+const PLATOON_SIDES = [
+  { key: 'L', name: 'Left', entry: 'LCF', exit: 'LF' },
+  { key: 'R', name: 'Right', entry: 'RF', exit: 'RCF' },
+];
+const STORAGE_KEY = 'softball-rotation-v1';
+// When short-handed, which spots to leave open first (lower = leave empty first).
+const EMPTY_COST = { RCF: 0, LCF: 25 };
+// One color per open spot when showing who could fill it (up to 4 at once).
+const OPEN_COLORS = [
+  { bg: '#dbe8ff', fg: '#1a4fb8' }, { bg: '#ecdfff', fg: '#6b2fd6' },
+  { bg: '#d3f2ec', fg: '#0b7a6a' }, { bg: '#ffe2cc', fg: '#b8520f' },
+];
+const BACK_TO_BACK_PENALTY = 10000;
+const SIT_SPREAD_PENALTY = 500;
+const ATTEMPTS = 400;
+
+// ---------- State ----------
+function defaultState() {
+  return { players: [], depth: Object.fromEntries(POS_IDS.map(id => [id, []])), innings: 7, game: [], nextId: 1, gameLabel: '', ofPlatoon: false, autoFill: false, battingOrder: [], tableOrder: 'batting' };
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (s && Array.isArray(s.players)) { const d = defaultState(); return { ...d, ...s, depth: { ...d.depth, ...(s.depth || {}) } }; }
+  } catch (e) { /* fall through to default */ }
+  return null;
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+let state = load() || defaultState();
+const ui = { tab: 'roster', inning: 0, selection: null, drag: null, gridView: 'player', printing: false };
+
+const player = id => state.players.find(p => p.id === id);
+const activePlayers = () => state.players.filter(p => p.active);
+const emptyLineup = () => Object.fromEntries(POS_IDS.map(id => [id, null]));
+const hasGame = () => state.game.some(l => POS_IDS.some(pos => l[pos]));
+const posOf = (lineup, id) => POS_IDS.find(pos => lineup[pos] === id) || null;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const label = p => (p.num ? `#${p.num} ` : '') + p.name;
+
+// Keep the game array sized to the inning count and drop players who are no longer available.
+function normalizeGame() {
+  const activeIds = new Set(activePlayers().map(p => p.id));
+  if (state.game.length > state.innings) state.game.length = state.innings;
+  while (state.game.length < state.innings) state.game.push(emptyLineup());
+  state.game.forEach(l => POS_IDS.forEach(pos => {
+    if (l[pos] == null || !activeIds.has(l[pos])) l[pos] = null;
+  }));
+}
+
+// ---------- Rotation generator ----------
+// Hungarian algorithm: cost is n x m with n <= m. Returns row -> column assignment minimizing total cost.
+function hungarian(cost) {
+  const n = cost.length, m = cost[0].length, INF = 1e12;
+  const u = Array(n + 1).fill(0), v = Array(m + 1).fill(0), p = Array(m + 1).fill(0), way = Array(m + 1).fill(0);
+  for (let i = 1; i <= n; i++) {
+    p[0] = i; let j0 = 0;
+    const minv = Array(m + 1).fill(INF), used = Array(m + 1).fill(false);
+    do {
+      used[j0] = true;
+      const i0 = p[j0]; let delta = INF, j1 = 0;
+      for (let j = 1; j <= m; j++) if (!used[j]) {
+        const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
+        if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+        if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+      }
+      for (let j = 0; j <= m; j++) {
+        if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta;
+      }
+      j0 = j1;
+    } while (p[j0] !== 0);
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+  }
+  const ans = Array(n).fill(-1);
+  for (let j = 1; j <= m; j++) if (p[j]) ans[p[j] - 1] = j - 1;
+  return ans;
+}
+
+// Lower is better: 1st on the depth chart = 0, 2nd = 10, ... not listed = 100.
+function depthCost(id, pos) {
+  const d = state.depth[pos].indexOf(id);
+  return d === -1 ? 100 : Math.min(d, 8) * 10;
+}
+// Small bonus for staying put between innings.
+const positionCost = (id, pos, prevPos) => depthCost(id, pos) + (prevPos === pos ? 0 : 3);
+
+// Fill the open `slots` of `lineup` with `fielders` (fielders.length <= slots.length). Returns the cost.
+function fillSlots(lineup, fielders, slots, prevLineup) {
+  if (!slots.length) return 0;
+  const prevPos = {};
+  for (const pos of POS_IDS) if (prevLineup[pos]) prevPos[prevLineup[pos]] = pos;
+  const rows = fielders.map(id => slots.map(pos => positionCost(id, pos, prevPos[id])));
+  while (rows.length < slots.length) rows.push(slots.map(pos => EMPTY_COST[pos] ?? 200));
+  let cost = 0;
+  hungarian(rows).forEach((col, r) => {
+    cost += rows[r][col];
+    if (r < fielders.length) lineup[slots[col]] = fielders[r];
+  });
+  return cost;
+}
+
+// Outfield platoon side from the depth chart: 'L', 'R', 'E' (either) or null (not in the platoon).
+// A player is an outfielder when their best depth-chart ranking is in the outfield (ties count as outfield).
+function autoPlatoonSide(p) {
+  const rank = pos => state.depth[pos].indexOf(p.id);
+  const best = list => Math.min(...list.map(rank).filter(r => r >= 0));
+  const bestOF = best(OF_POS), bestIF = best(POS_IDS.filter(pos => !OF_POS.includes(pos)));
+  if (bestOF === Infinity || bestIF < bestOF) return null;
+  const left = rank('LF') >= 0 || rank('LCF') >= 0, right = rank('RF') >= 0 || rank('RCF') >= 0;
+  return left && right ? 'E' : left ? 'L' : 'R';
+}
+function platoonSide(p) {
+  const o = p.platoon || 'auto';
+  return o === 'auto' ? autoPlatoonSide(p) : o === 'none' ? null : o;
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+// Split platoon players into left/right. Either-side players already on a side (when re-planning
+// mid-game) stay there; the rest even out the sides.
+function splitPlatoons(ids, lastLineup) {
+  const sides = { L: [], R: [] }, loose = [];
+  ids.forEach(id => {
+    const s = platoonSide(player(id));
+    if (s === 'L' || s === 'R') sides[s].push(id);
+    else if (s === 'E') {
+      const pos = lastLineup && posOf(lastLineup, id);
+      if (pos === 'LF' || pos === 'LCF') sides.L.push(id);
+      else if (pos === 'RF' || pos === 'RCF') sides.R.push(id);
+      else loose.push(id);
+    }
+  });
+  shuffle(loose).forEach(id => {
+    const d = sides.L.length - sides.R.length;
+    sides[d < 0 || (d === 0 && Math.random() < 0.5) ? 'L' : 'R'].push(id);
+  });
+  return sides;
+}
+
+// Advance one side of the platoon: the entry player slides to the exit spot, the exit player heads
+// to the bench, and the player who has been waiting comes in at the entry spot. With only two on a
+// side nobody is waiting, so the exit player comes straight back in (they trade spots).
+function rotatePlatoon(side, members, prev, lineup, i, lastSat, sitCount, rnd) {
+  const mine = id => id != null && members.includes(id);
+  const mover = mine(prev[side.entry]) ? prev[side.entry] : null;
+  const leaving = mine(prev[side.exit]) ? prev[side.exit] : null;
+  const queue = members.filter(id => id !== mover && id !== leaving).sort((a, b) =>
+    ((lastSat[b] === i - 1) - (lastSat[a] === i - 1)) || (sitCount[b] - sitCount[a]) || (rnd[a] - rnd[b]));
+  if (leaving) queue.push(leaving);
+  lineup[side.exit] = mover;
+  lineup[side.entry] = queue.shift() ?? null;
+  if (!mover) lineup[side.exit] = queue.shift() ?? null;
+}
+
+// One randomized attempt. Innings before kept.length are left untouched (used for mid-game re-planning).
+function buildAttempt(kept, ids, always) {
+  const lineups = kept.map(l => ({ ...l }));
+  const sitCount = {}, lastSat = {}, rnd = {};
+  ids.forEach(id => { sitCount[id] = 0; lastSat[id] = -99; rnd[id] = Math.random(); });
+  lineups.forEach((l, i) => {
+    const on = new Set(Object.values(l));
+    ids.forEach(id => { if (!on.has(id)) { sitCount[id]++; lastSat[id] = i; } });
+  });
+  const platoons = state.ofPlatoon
+    ? splitPlatoons(ids.filter(id => !always.has(id)), lineups[lineups.length - 1])
+    : { L: [], R: [] };
+  const inPlatoon = new Set([...platoons.L, ...platoons.R]);
+  let score = 0;
+  for (let i = lineups.length; i < state.innings; i++) {
+    const prev = lineups[i - 1] || {};
+    const lineup = emptyLineup();
+    if (state.ofPlatoon) {
+      PLATOON_SIDES.forEach(side => rotatePlatoon(side, platoons[side.key], prev, lineup, i, lastSat, sitCount, rnd));
+    }
+    const placed = new Set(POS_IDS.map(pos => lineup[pos]).filter(Boolean));
+    placed.forEach(id => { score += depthCost(id, posOf(lineup, id)); });
+    const openSlots = POS_IDS.filter(pos => !lineup[pos]);
+    const pool = ids.filter(id => !placed.has(id));
+    // Who sits: never "always plays" players if avoidable, never someone who sat last inning if avoidable,
+    // then platoon outfielders rotating out, then whoever has sat the least, then whoever sat longest ago, then random.
+    const order = pool.slice().sort((a, b) =>
+      (always.has(a) - always.has(b)) ||
+      ((lastSat[a] === i - 1) - (lastSat[b] === i - 1)) ||
+      (inPlatoon.has(b) - inPlatoon.has(a)) ||
+      (sitCount[a] - sitCount[b]) ||
+      (lastSat[a] - lastSat[b]) ||
+      (rnd[a] - rnd[b]));
+    const sitters = new Set(order.slice(0, Math.max(0, pool.length - openSlots.length)));
+    score += fillSlots(lineup, pool.filter(id => !sitters.has(id)), openSlots, prev);
+    sitters.forEach(id => {
+      if (lastSat[id] === i - 1) score += BACK_TO_BACK_PENALTY;
+      sitCount[id]++; lastSat[id] = i;
+    });
+    lineups.push(lineup);
+  }
+  // Even out sitting time within each group (platoon outfielders sit more than infielders by design).
+  [ids.filter(id => inPlatoon.has(id)), ids.filter(id => !inPlatoon.has(id) && !always.has(id))].forEach(group => {
+    if (!group.length) return;
+    const counts = group.map(id => sitCount[id]);
+    score += SIT_SPREAD_PENALTY * (Math.max(...counts) - Math.min(...counts));
+  });
+  return { lineups, score };
+}
+
+function generateRotation(fromInning = 0) {
+  normalizeGame();
+  const active = activePlayers();
+  const ids = active.map(p => p.id);
+  const always = new Set(active.filter(p => p.always).map(p => p.id));
+  const kept = state.game.slice(0, fromInning);
+  let best = null;
+  for (let t = 0; t < ATTEMPTS; t++) {
+    const a = buildAttempt(kept, ids, always);
+    if (!best || a.score < best.score) best = a;
+  }
+  state.game = best.lineups;
+}
+
+// ---------- Validation ----------
+const inningIsSet = l => POS_IDS.some(pos => l[pos]);
+const fillableCount = () => Math.min(POS_IDS.length, activePlayers().length);
+const inningComplete = j => POS_IDS.filter(pos => state.game[j][pos]).length >= fillableCount();
+
+// Innings nobody has been placed in yet are "not set" and don't count as problems.
+function analyze() {
+  const active = activePlayers();
+  const set = state.game.map(inningIsSet);
+  const sits = {}, consec = new Set(), issues = state.game.map(() => []);
+  active.forEach(p => { sits[p.id] = state.game.map((l, j) => set[j] && !posOf(l, p.id)); });
+  active.forEach(p => {
+    const s = sits[p.id];
+    for (let j = 1; j < s.length; j++) if (s[j] && s[j - 1]) {
+      consec.add(`${p.id}:${j}`); consec.add(`${p.id}:${j - 1}`);
+      issues[j].push({ type: 'b2b', msg: `${p.name} sits innings ${j} & ${j + 1} in a row` });
+    }
+  });
+  const fillable = fillableCount();
+  state.game.forEach((l, j) => {
+    const empty = POS_IDS.filter(pos => !l[pos]);
+    if (set[j] && POS_IDS.length - empty.length < fillable) {
+      issues[j].push({ type: 'empty', msg: `${empty.join(', ')} ${empty.length === 1 ? 'is' : 'are'} empty` });
+    }
+  });
+  return { set, sits, consec, issues };
+}
+
+// [2,3,4,6] -> "innings 2–4, 6"
+function inningsLabel(nums) {
+  const parts = [];
+  nums.forEach(x => {
+    const last = parts[parts.length - 1];
+    if (last && x === last[1] + 1) last[1] = x; else parts.push([x, x]);
+  });
+  return (nums.length === 1 ? 'inning ' : 'innings ') + parts.map(([a, b]) => a === b ? a : `${a}–${b}`).join(', ');
+}
+
+// With auto-fill on, once inning j has every spot filled, re-plan everything after it.
+function autoFillAfter(j) {
+  if (state.autoFill && activePlayers().length && j < state.innings - 1 && inningComplete(j)) generateRotation(j + 1);
+}
+
+// ---------- Rendering ----------
+const $ = s => document.querySelector(s);
+
+function render() {
+  normalizeGame();
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === ui.tab));
+  document.querySelectorAll('main > section').forEach(s => { s.hidden = s.id !== `tab-${ui.tab}`; });
+  if (ui.tab === 'roster') renderRoster();
+  if (ui.tab === 'depth') renderDepth();
+  if (ui.tab === 'game') renderGame();
+}
+
+function fieldSVG(platoonArrows = false) {
+  const base = (x, y) => `<rect x="${x - 1.1}" y="${y - 1.1}" width="2.2" height="2.2" transform="rotate(45 ${x} ${y})"/>`;
+  const arrows = platoonArrows ? `
+    <defs><marker id="arrowhead" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="4" markerHeight="4" orient="auto">
+      <path d="M0 0 L6 3 L0 6 Z" fill="#fff"/></marker></defs>
+    <g fill="none" stroke="#fff" stroke-width=".7" stroke-dasharray="1.6 1" opacity=".9" marker-end="url(#arrowhead)">
+      <path d="M80 36 Q78 28 71 26"/><path d="M29 27 Q22 28 20 35"/></g>` : '';
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <path d="M50 97 L3 50 A47 47 0 0 1 97 50 Z" fill="var(--grass)" stroke="#fff" stroke-width=".5" stroke-opacity=".8"/>
+    <path d="M50 97 L27 74 Q50 44 73 74 Z" fill="var(--dirt)"/>
+    <path d="M50 92 L63 79 L50 66 L37 79 Z" fill="var(--grass2)"/>
+    <circle cx="50" cy="80" r="2.4" fill="var(--dirt)"/>
+    <g fill="#fff">${base(63, 79)}${base(50, 66)}${base(37, 79)}<path d="M48.8 91.2 h2.4 v1.2 l-1.2 1.2 l-1.2 -1.2 Z"/></g>${arrows}
+  </svg>`;
+}
+
+// Is this player a sensible fit at pos? (On the depth chart there, or a platoon outfielder on their side.)
+function fitsPosition(id, pos) {
+  if (state.depth[pos].includes(id)) return true;
+  const side = state.ofPlatoon && PLATOON_SIDES.find(s => s.entry === pos || s.exit === pos);
+  const ps = side && platoonSide(player(id));
+  return !!side && (ps === side.key || ps === 'E');
+}
+
+const SIDE_LABEL = { L: 'Left', R: 'Right', E: 'Either side' };
+
+// Who's in each platoon for the current roster, and how the sides will likely balance.
+function platoonPreview() {
+  const L = [], R = [], E = [], excluded = [];
+  activePlayers().forEach(p => {
+    const s = platoonSide(p);
+    if (!s) return;
+    if (p.always) excluded.push(p);
+    else ({ L, R, E })[s].push(p);
+  });
+  let l = L.length, r = R.length;
+  E.forEach(() => { if (l <= r) l++; else r++; });
+  return { L, R, E, excluded, sizes: { L: l, R: r } };
+}
+
+function platoonPanelHTML() {
+  const pv = platoonPreview();
+  const names = list => list.map(p => esc(p.name)).join(', ') || '<span class="muted">nobody</span>';
+  const notes = PLATOON_SIDES.map(s => {
+    const n = pv.sizes[s.key];
+    if (n === 3) return '';
+    if (n >= 4) return `${s.name} side has ${n}. The pattern fits 3, so each inning the extra player fills in at another position instead of sitting twice in a row.`;
+    if (n === 2) return `${s.name} side has 2, so they trade ${s.entry} ↔ ${s.exit} every inning and neither sits.`;
+    if (n === 1) return `${s.name} side has only 1. The other ${s.name.toLowerCase()} spot is filled from the rest of the team.`;
+    return `No ${s.name.toLowerCase()}-side outfielders. ${s.entry} and ${s.exit} are filled from the rest of the team.`;
+  }).filter(Boolean);
+  if (pv.excluded.length) notes.push(`${names(pv.excluded)} ${pv.excluded.length === 1 ? 'is' : 'are'} marked “Never sits”, so they’re left out of the platoon.`);
+  return `<div class="platoon-panel">
+    <p><b>Left</b> (LCF → LF → sit): ${names(pv.L)}</p>
+    <p><b>Right</b> (RF → RCF → sit): ${names(pv.R)}</p>
+    ${pv.E.length ? `<p><b>Either side</b>: ${names(pv.E)} <span class="muted">(placed to even out the sides)</span></p>` : ''}
+    <p class="muted small" style="margin-top:6px">Sides come from each player’s outfield spots on the depth chart (RF/RCF = right, LF/LCF = left).
+      Override a player on the Roster tab.</p>
+    ${notes.length ? `<ul>${notes.map(n => `<li>${n}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+// Group rotation-grid rows by platoon, each sorted by when the player first comes in so the pattern reads as a staircase.
+function rowGroups(active) {
+  if (!state.ofPlatoon) return [{ title: null, players: active }];
+  const groups = PLATOON_SIDES.map(side => ({ side, title: `${side.name} platoon: ${side.entry} → ${side.exit} → sit`, players: [] }));
+  const rest = { title: 'Infield & others', players: [] };
+  active.forEach(p => {
+    const ps = p.always ? null : platoonSide(p);
+    if (!ps) return rest.players.push(p);
+    const [l, r] = PLATOON_SIDES.map(s => state.game.filter(lu => lu[s.entry] === p.id || lu[s.exit] === p.id).length);
+    const key = l > r ? 'L' : r > l ? 'R' : ps === 'R' ? 'R' : 'L';
+    groups.find(g => g.side.key === key).players.push(p);
+  });
+  groups.forEach(({ side, players }) => {
+    const start = p => {
+      const j = state.game.findIndex(lu => lu[side.entry] === p.id || lu[side.exit] === p.id);
+      return j < 0 ? 99 : state.game[j][side.exit] === p.id ? j - 1 : j;
+    };
+    players.sort((a, b) => start(a) - start(b));
+  });
+  return [...groups, rest].filter(g => g.players.length);
+}
+
+function positionsFor(id) {
+  const parts = POS_IDS.map(pos => [pos, state.depth[pos].indexOf(id)]).filter(([, d]) => d >= 0)
+    .sort((a, b) => a[1] - b[1]).map(([pos, d]) => `${pos}${d === 0 ? '★' : ` (${d + 1})`}`);
+  return parts.length ? parts.join(', ') : '<em>not on depth chart</em>';
+}
+
+function renderRoster() {
+  const active = activePlayers();
+  const rows = state.players.map(p => `
+    <li class="player-row ${p.active ? '' : 'inactive'}">
+      <label class="toggle c-here" title="Available for this game"><input type="checkbox" data-act="active" data-id="${p.id}" ${p.active ? 'checked' : ''}> Here</label>
+      <input class="num" data-act="num" data-id="${p.id}" value="${esc(p.num)}" placeholder="#" maxlength="3" aria-label="Jersey number">
+      <input class="name" data-act="name" data-id="${p.id}" value="${esc(p.name)}" aria-label="Name">
+      <span class="pos-summary" title="From the depth chart">${positionsFor(p.id)}</span>
+      ${state.ofPlatoon ? `<select class="c-plat" data-act="platoon" data-id="${p.id}" title="Outfield platoon side">
+        ${[['auto', `OF: auto (${SIDE_LABEL[autoPlatoonSide(p)] || 'not in platoon'})`], ['L', 'OF: Left'], ['R', 'OF: Right'],
+           ['E', 'OF: Either side'], ['none', 'Not in OF platoon']]
+          .map(([v, t]) => `<option value="${v}" ${(p.platoon || 'auto') === v ? 'selected' : ''}>${t}</option>`).join('')}
+      </select>` : ''}
+      <label class="toggle c-always" title="Never schedule this player to sit"><input type="checkbox" data-act="always" data-id="${p.id}" ${p.always ? 'checked' : ''}> Never sits</label>
+      <button class="icon c-del" data-act="delete" data-id="${p.id}" title="Remove player">✕</button>
+    </li>`).join('');
+
+  $('#tab-roster').innerHTML = `
+    <div class="card">
+      <h2>Roster</h2>
+      <form id="add-form" class="row">
+        <input id="add-name" placeholder="Player name (or paste several, comma-separated)" style="flex:1; min-width:220px" autocomplete="off">
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <p class="muted small">${state.players.length} on roster · <b>${active.length}</b> here tonight. Uncheck “Here” for anyone missing this game.</p>
+      <ul class="player-list">${rows || '<li class="muted" style="padding:10px 0">No players yet. Add some above, or load the sample team to try it out.</li>'}</ul>
+    </div>
+    <div class="card row">
+      <button class="btn" data-act="sample">Load sample team</button>
+      <button class="btn" data-act="export">Export backup</button>
+      <label class="btn">Import backup<input type="file" accept="application/json" data-act="import" hidden></label>
+      <button class="btn danger" data-act="reset">Delete everything</button>
+    </div>`;
+}
+
+function renderDepth() {
+  const starters = POSITIONS.map(pos => {
+    const id = state.depth[pos.id].find(id => player(id)?.active);
+    const p = id && player(id);
+    return `<button class="chip ${p ? '' : 'empty'}" style="left:${pos.x}%;top:${pos.y}%" data-act="jump" data-pos="${pos.id}">
+      <small>${pos.id}</small><b>${p ? esc(p.name) : 'none'}</b></button>`;
+  }).join('');
+
+  const cards = POSITIONS.map(pos => {
+    const list = state.depth[pos.id];
+    const items = list.map((id, idx) => {
+      const p = player(id);
+      return `<li><span class="rank">${idx + 1}</span><span class="nm ${p.active ? '' : 'muted'}">${esc(label(p))}</span>
+        <button class="icon" data-act="up" data-pos="${pos.id}" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} title="Move up">↑</button>
+        <button class="icon" data-act="down" data-pos="${pos.id}" data-idx="${idx}" ${idx === list.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+        <button class="icon" data-act="remove" data-pos="${pos.id}" data-idx="${idx}" title="Remove">✕</button></li>`;
+    }).join('');
+    const options = state.players.filter(p => !list.includes(p.id))
+      .map(p => `<option value="${p.id}">${esc(label(p))}</option>`).join('');
+    return `<div class="card" id="depth-${pos.id}">
+      <h3><span class="badge">${pos.id}</span>${pos.name}</h3>
+      <ol>${items || '<li class="muted small">Nobody listed yet</li>'}</ol>
+      <select data-act="add" data-pos="${pos.id}"><option value="">+ Add player…</option>${options}</select>
+    </div>`;
+  }).join('');
+
+  const unlisted = state.players.filter(p => !POS_IDS.some(pos => state.depth[pos].includes(p.id)));
+
+  $('#tab-depth').innerHTML = `
+    <div class="two-col">
+      <div class="card">
+        <h2>Starters</h2>
+        <div class="field-wrap">${fieldSVG()}${starters}</div>
+        <p class="muted small">Shows the highest-ranked available player at each spot. Tap a position to edit it.</p>
+      </div>
+      <div>
+        <div class="card">
+          <h2>Depth Chart</h2>
+          <p class="muted small" style="margin:0">Rank who can play each position. The rotation generator puts players where they’re ranked highest
+          and only uses someone off the chart as a last resort. List a player at several positions to give it more flexibility.</p>
+          ${unlisted.length ? `<div class="banner info">Not on any position yet: ${unlisted.map(p => esc(p.name)).join(', ')}</div>` : ''}
+        </div>
+        <div class="depth-grid">${cards}</div>
+      </div>
+    </div>`;
+}
+
+function renderGame() {
+  const active = activePlayers();
+  const n = state.innings;
+  ui.inning = Math.min(ui.inning, n - 1);
+  const i = ui.inning;
+  const L = state.game[i];
+  const has = hasGame();
+  const A = analyze();
+  const k = Math.max(0, active.length - POS_IDS.length);
+  const canSit = active.filter(p => !p.always).length;
+
+  // Summary
+  let summary;
+  if (!active.length) summary = 'No players available. Add players on the Roster tab.';
+  else if (active.length < POS_IDS.length) summary = `${active.length} players available: short-handed, so ${POS_IDS.length - active.length} spot(s) will be empty.`;
+  else if (k === 0) summary = `${active.length} players available: everyone plays every inning.`;
+  else {
+    const total = k * n, lo = Math.floor(total / canSit), hi = Math.ceil(total / canSit);
+    summary = `${active.length} players available → <b>${k}</b> sit each inning. ` + (state.ofPlatoon ? '' :
+      ` Each player sits about <b>${lo === hi ? lo : `${lo}–${hi}`}</b> of ${n} innings.`);
+  }
+  const impossible = k > 0 && 2 * k > canSit;
+  const setInnings = A.set.filter(Boolean).length;
+  const unset = A.set.map((x, j) => x ? null : j + 1).filter(Boolean);
+  const b2b = A.issues.flat().filter(x => x.type === 'b2b').length;
+  const openInnings = A.issues.filter(list => list.some(x => x.type === 'empty')).length;
+
+  // Compact status above the grid; details stay collapsed until asked for.
+  let status = '';
+  if (setInnings) {
+    const parts = [];
+    if (b2b) parts.push(`${b2b} back-to-back sit${b2b === 1 ? '' : 's'}`);
+    if (openInnings) parts.push(`${openInnings} inning${openInnings === 1 ? '' : 's'} with open spots`);
+    status = parts.length
+      ? `<details class="status ${b2b ? 'bad' : 'note'}"><summary>⚠️ ${parts.join(' · ')}</summary><ul>${
+          A.issues.flatMap((list, j) => list.map(x => `<li><b>Inning ${j + 1}:</b> ${esc(x.msg)}</li>`)).join('')}</ul></details>`
+      : `<div class="status ok">✅ No back-to-back sits${unset.length ? ' so far' : ', and every position is filled'}</div>`;
+    if (unset.length) status += `<div class="status note">${inningsLabel(unset).replace(/^i/, 'I')} not set yet.</div>`;
+  }
+  const curB2b = A.issues[i].filter(x => x.type === 'b2b').map(x => esc(x.msg)).join(' · ');
+  const curOpen = A.set[i] ? fillableCount() - POS_IDS.filter(pos => L[pos]).length : 0;
+
+  // Auto-fill switch text
+  const rest = i < n - 1 ? inningsLabel(Array.from({ length: n - i - 1 }, (_, j) => i + 2 + j)) : null;
+  const autoText = !state.autoFill
+    ? `Set up inning ${i + 1}, then switch this on to fill in the rest from the rotation.`
+    : !rest ? 'On. This is the last inning.'
+    : !inningComplete(i) ? `On. Fill every spot in inning ${i + 1} and ${rest} will fill in.`
+    : `On. ${rest[0].toUpperCase() + rest.slice(1)} follow${rest.startsWith('innings') ? '' : 's'} from inning ${i + 1}. Changes on the field refresh the innings after it; edits in the table never do.`;
+
+  // Field + bench
+  const onField = new Set(POS_IDS.map(pos => L[pos]).filter(Boolean));
+
+  // Open spots in the selected inning, each with a color, and who could fill them. Skipped while an
+  // inning is mostly empty (being built) so the screen doesn't turn into a rainbow.
+  const openHere = A.set[i] ? POS_IDS.filter(pos => !L[pos]) : [];
+  const openColor = {};
+  if (!ui.printing && openHere.length <= OPEN_COLORS.length) openHere.forEach((pos, k) => { openColor[pos] = OPEN_COLORS[k]; });
+  const rankAt = (id, pos) => { const d = state.depth[pos].indexOf(id); return d < 0 ? 99 : d; };
+  // Open spots this player fits, best fit first.
+  const fillsFor = id => Object.keys(openColor).filter(pos => fitsPosition(id, pos)).sort((a, b) => rankAt(id, a) - rankAt(id, b));
+  const hlVars = pos => `--hl-bg:${openColor[pos].bg};--hl-fg:${openColor[pos].fg}`;
+  const sel = (kind, key) => ui.selection && ui.selection.kind === kind && String(ui.selection.key) === String(key);
+  const fieldChips = POSITIONS.map(pos => {
+    const id = L[pos.id], p = id && player(id);
+    const off = p && !fitsPosition(id, pos.id);
+    const open = !p && openColor[pos.id];
+    return `<button class="chip ${p ? '' : 'empty'} ${off ? 'off' : ''} ${open ? 'hl-open' : ''} ${sel('pos', pos.id) ? 'selected' : ''}"
+      style="left:${pos.x}%;top:${pos.y}%;${open ? hlVars(pos.id) : ''}" draggable="true" data-kind="pos" data-key="${pos.id}"
+      title="${p ? esc(p.name) + ' — ' + pos.name + (off ? ' (not on depth chart here)' : '') : pos.name + ' — empty'}">
+      <small>${pos.id}</small><b>${p ? esc(p.name) : '—'}</b></button>`;
+  }).join('');
+  const bench = active.filter(p => !onField.has(p.id));
+  const benchChips = bench.map(p => {
+    const sat = A.sits[p.id].filter(Boolean).length;
+    const bad = A.consec.has(`${p.id}:${i}`);
+    const fills = fillsFor(p.id);
+    const note = fills.length ? `<i>${bad ? 'back-to-back! ' : ''}→ ${fills.join('/')}</i>`
+      : bad ? '<i>back-to-back!</i>' : A.set[i] && curOpen <= 0 ? `<i>sits ${sat}×</i>` : '';
+    return `<button class="chip ${bad ? 'bad' : ''} ${fills.length && !bad ? 'hl-fill' : ''} ${sel('bench', p.id) ? 'selected' : ''}"
+      ${fills.length ? `style="${hlVars(fills[0])}" title="Can play ${fills.join(', ')}"` : ''} draggable="true" data-kind="bench" data-key="${p.id}">
+      <b>${esc(p.name)}</b>${note}</button>`;
+  }).join('');
+
+  const hint = ui.selection
+    ? (ui.selection.kind === 'bench' ? 'Now tap a position to put them in.' : 'Now tap another position or a bench player to swap, or the bench to sit them.')
+    : (has ? 'Tap (or drag) a player, then tap where they should go.' : '');
+
+  // Grids
+  const innHeads = state.game.map((_, j) =>
+    `<th class="inn ${j === i ? 'cur' : ''}" data-act="inning" data-i="${j}" title="Show inning ${j + 1}">${j + 1}${A.issues[j].some(x => x.type === 'b2b') ? '<span class="no-print"> ⚠️</span>' : ''}</th>`).join('');
+  // Every cell is a dropdown; picking a spot someone else holds swaps the two players.
+  const byBatting = state.tableOrder === 'batting';
+  const batting = battingLineup();
+  const playerCell = (p, l, j) => {
+    const pos = posOf(l, p.id);
+    const bad = A.consec.has(`${p.id}:${j}`);
+    let cls = !A.set[j] ? 'unset' : pos ? `pos ${fitsPosition(p.id, pos) ? '' : 'off'}` : `sit ${bad ? 'bad' : ''}`;
+    // Selected inning with open spots: shade sitters who can fill one, outline players who could slide over.
+    const fills = j === i ? fillsFor(p.id).filter(x => x !== pos) : [];
+    let style = '', title = '';
+    if (fills.length) {
+      style = `style="${hlVars(fills[0])}"`;
+      if (pos) { cls += ' hl-move'; title = `Playing ${pos}; could move to ${fills.join(', ')}`; }
+      else { if (!bad) cls += ' hl-fill'; title = `Sitting; can play ${fills.join(', ')}`; }
+    }
+    const sitLabel = A.set[j] ? (fills.length && !pos ? `→ ${fills.join('/')}` : 'SIT') : '';
+    const opts = [`<option value="" ${pos ? '' : 'selected'}>${sitLabel}</option>`].concat(POS_IDS.map(x => {
+      const other = l[x] && l[x] !== p.id ? player(l[x]).name : null;
+      return `<option value="${x}" ${x === pos ? 'selected' : ''}>${x === pos ? x : `${x} · ${other ? (pos ? `swap with ${esc(other)}` : `${esc(other)} sits`) : 'open'}`}</option>`;
+    }));
+    return `<td class="edit ${cls} ${j === i ? 'cur' : ''}" ${style} ${title ? `title="${title}"` : ''}><select class="cell" data-act="cell-player" data-j="${j}" data-id="${p.id}"
+      ${sitLabel.length > 4 ? `style="min-width:${1.5 + sitLabel.length * 0.6}em"` : ''} aria-label="${esc(p.name)}, inning ${j + 1}">${opts.join('')}</select></td>`;
+  };
+  const playerRow = p => {
+    const sat = A.sits[p.id].filter(Boolean).length;
+    const slot = batting.findIndex(b => b.id === p.id);
+    const bat = byBatting ? `<td class="bat edit"><select class="cell" data-act="bat" data-id="${p.id}" aria-label="Batting order for ${esc(p.name)}">${
+      batting.map((_, k) => `<option value="${k}" ${k === slot ? 'selected' : ''}>${k + 1}</option>`).join('')}</select></td>` : '';
+    return `<tr>${bat}<td class="name">${esc(label(p))}${p.always ? ' <span class="muted small">🔒</span>' : ''}</td>${
+      state.game.map((l, j) => playerCell(p, l, j)).join('')}<td class="tot">${setInnings - sat}</td><td class="tot">${sat}</td></tr>`;
+  };
+  const byPlayer = (byBatting ? [{ title: null, players: batting }] : rowGroups(active)).map(g =>
+    (g.title ? `<tr class="group"><td colspan="${n + 3}">${g.title}</td></tr>` : '') + g.players.map(playerRow).join('')).join('');
+  const byPosition = POSITIONS.map(pos => `<tr><td class="name">${pos.id}</td>${state.game.map((l, j) => {
+    const id = l[pos.id], p = id && player(id);
+    const open = j === i && !p && openColor[pos.id];
+    const cls = (!A.set[j] ? 'unset' : p ? (fitsPosition(p.id, pos.id) ? '' : 'off') : 'empty') + (open ? ' hl-fill' : '');
+    const opts = [`<option value="" ${p ? '' : 'selected'}>${A.set[j] ? (open ? 'open' : '—') : ''}</option>`].concat(active.map(q => {
+      const at = posOf(l, q.id);
+      return `<option value="${q.id}" ${q.id === id ? 'selected' : ''}>${q.id === id ? esc(q.name) : `${esc(q.name)} · ${at ? `from ${at}${p ? ', swap' : ''}` : 'sitting'}`}</option>`;
+    }));
+    return `<td class="edit ${cls} ${j === i ? 'cur' : ''}" ${open ? `style="${hlVars(pos.id)}"` : ''}><select class="cell" data-act="cell-pos" data-j="${j}" data-pos="${pos.id}"
+      aria-label="${pos.name}, inning ${j + 1}">${opts.join('')}</select></td>`;
+  }).join('')}</tr>`).join('') +
+    `<tr><td class="name">Sitting</td>${state.game.map((l, j) => `<td class="sitters ${j === i ? 'cur' : ''}">${
+      !A.set[j] ? '' : active.filter(p => !posOf(l, p.id)).map(p => {
+        const fills = j === i ? fillsFor(p.id) : [];
+        return fills.length ? `<b style="color:${openColor[fills[0]].fg}">${esc(p.name)} → ${fills.join('/')}</b>` : esc(p.name);
+      }).join('<br>') || '—'}</td>`).join('')}</tr>`;
+
+  // Key above the table: each open spot, its color, and who could fill it.
+  const openHelp = Object.keys(openColor).length ? `<div class="open-help no-print">
+    <b>Inning ${i + 1} has ${openHere.length} open spot${openHere.length === 1 ? '' : 's'}:</b>
+    ${Object.keys(openColor).map(pos => {
+      const sitters = bench.filter(p => fitsPosition(p.id, pos)).sort((a, b) => rankAt(a.id, pos) - rankAt(b.id, pos));
+      const movers = active.filter(p => onField.has(p.id) && fitsPosition(p.id, pos));
+      return `<div><span class="open-tag" style="background:${openColor[pos].bg};color:${openColor[pos].fg}">${pos}</span>
+        ${sitters.length ? `Sitting & can play it: <b>${sitters.map(p => esc(p.name)).join(', ')}</b>` : '<span class="muted">Nobody sitting is listed here.</span>'}
+        ${movers.length ? `<span class="muted"> · Could slide over: ${movers.map(p => `${esc(p.name)} (${posOf(L, p.id)})`).join(', ')}</span>` : ''}</div>`;
+    }).join('')}
+    <div class="muted" style="margin-top:4px">Shaded cells = sitting and can play it · dashed outline = playing elsewhere, could slide over.</div>
+  </div>` : '';
+
+  $('#tab-game').innerHTML = `
+    <div class="card no-print">
+      <div class="row">
+        <input data-act="label" value="${esc(state.gameLabel)}" placeholder="Game (e.g. vs. Sluggers, Sep 28)" style="flex:1; min-width:200px">
+        <label class="row small" style="gap:4px">Innings
+          <select data-act="innings">${[3, 4, 5, 6, 7, 8, 9].map(x => `<option ${x === n ? 'selected' : ''}>${x}</option>`).join('')}</select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" data-act="generate" ${active.length ? '' : 'disabled'}>🎲 ${has ? 'Re-roll rotation' : 'Generate rotation'}</button>
+        <button class="btn" data-act="replan" ${i === 0 || !has ? 'disabled' : ''} title="Keep innings 1–${i} as they are and re-plan the rest (use mid-game when someone leaves or shows up)">↻ Re-plan from inning ${i + 1}</button>
+        <button class="btn" data-act="clear-game" ${has ? '' : 'disabled'}>Clear</button>
+        <button class="btn" data-act="print" ${has ? '' : 'disabled'}>🖨 Print</button>
+      </div>
+      <label class="toggle" style="margin-top:12px; font-size:.9rem">
+        <input type="checkbox" data-act="platoon-toggle" ${state.ofPlatoon ? 'checked' : ''}>
+        <b>Outfield platoons</b>&nbsp;<span class="muted">RF → RCF → sit &nbsp;·&nbsp; LCF → LF → sit</span>
+      </label>
+      ${state.ofPlatoon ? platoonPanelHTML() : ''}
+      <p class="small" style="margin:10px 0 0">${summary}</p>
+      ${impossible ? `<div class="banner bad">With ${k} sitting each inning and only ${canSit} players allowed to sit, somebody has to sit back-to-back. Allow more players to sit (uncheck “Never sits”) or play short.</div>` : ''}
+    </div>
+
+    <div class="print-only"><h2>${esc(state.gameLabel || 'Lineup')}${ui.gridView === 'player' && byBatting ? ': batting order & positions' : ''}</h2></div>
+
+    <div class="two-col">
+      <div class="card no-print">
+        <div class="autofill">
+          <label class="switch" title="Auto-fill the rest"><input type="checkbox" data-act="autofill" ${state.autoFill ? 'checked' : ''}><span></span></label>
+          <div><b>Auto-fill the rest</b><div class="muted">${autoText}</div></div>
+        </div>
+        <div class="pills">${state.game.map((_, j) => `<button class="pill ${j === i ? 'active' : ''} ${A.issues[j].some(x => x.type === 'b2b') ? 'warn' : ''} ${A.set[j] ? '' : 'unset'}" data-act="inning" data-i="${j}" title="Inning ${j + 1}${A.set[j] ? '' : ' (not set yet)'}">${j + 1}</button>`).join('')}</div>
+        <div class="field-wrap">${fieldSVG(state.ofPlatoon)}${fieldChips}
+          ${!has && active.length ? '<div class="field-overlay">Tap <b>Generate rotation</b>, or build inning 1 by hand: tap a player on the bench, then a position. With <b>Auto-fill</b> on, the rest follows.</div>' : ''}
+        </div>
+        ${curB2b ? `<p class="inning-issues">⚠️ ${curB2b}</p>` : ''}
+        ${curOpen > 0 ? `<p class="inning-issues neutral">${curOpen} spot${curOpen === 1 ? '' : 's'} left to fill in inning ${i + 1}</p>` : ''}
+        <p class="hint">${hint}</p>
+        <div class="bench" data-kind="bench-zone">
+          <div class="bench-title">Sitting — inning ${i + 1}</div>
+          <div class="chips">${benchChips || '<span class="muted small">Nobody sits this inning</span>'}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row no-print" style="justify-content:space-between; margin-bottom:10px">
+          <h2 style="margin:0">Rotation</h2>
+          <div class="seg">
+            <button data-act="view" data-view="player" class="${ui.gridView === 'player' ? 'active' : ''}">By player</button>
+            <button data-act="view" data-view="position" class="${ui.gridView === 'position' ? 'active' : ''}">By position</button>
+          </div>
+        </div>
+        <div class="no-print">${status}</div>
+        ${openHelp}
+        <div class="table-tools no-print">
+          <span class="muted">Tap any cell to change it. Picking a taken spot swaps the two players. Only that inning changes.</span>
+          ${ui.gridView === 'player' ? `<div class="seg">
+            <button data-act="order" data-order="batting" class="${byBatting ? 'active' : ''}">Batting order</button>
+            <button data-act="order" data-order="groups" class="${byBatting ? '' : 'active'}">${state.ofPlatoon ? 'Platoon groups' : 'Roster order'}</button>
+          </div>` : ''}
+        </div>
+        <div class="table-wrap">
+          <table class="grid ${ui.gridView === 'player' ? '' : 'screen-hidden'}">
+            <thead><tr>${byBatting ? '<th title="Batting order">Bat</th>' : ''}<th>Player</th>${innHeads}<th>In</th><th>Sit</th></tr></thead>
+            <tbody>${byPlayer}</tbody>
+          </table>
+          <table class="grid ${ui.gridView === 'position' ? '' : 'screen-hidden'}">
+            <thead><tr><th>Pos</th>${innHeads}</tr></thead>
+            <tbody>${byPosition}</tbody>
+          </table>
+        </div>
+        <div class="legend no-print"><span class="l-sit">Sitting</span><span class="l-bad">Back-to-back sit</span><span class="l-off">Not a listed position for that player</span></div>
+      </div>
+    </div>`;
+}
+
+// ---------- Actions ----------
+function addPlayers(text) {
+  text.split(/[,\n]/).map(s => s.trim()).filter(Boolean).forEach(name => {
+    state.players.push({ id: state.nextId++, name, num: '', active: true, always: false });
+  });
+}
+
+// Available players in batting order; anyone not yet placed goes to the bottom.
+function battingLineup() {
+  const active = activePlayers(), ids = new Set(active.map(p => p.id));
+  const order = state.battingOrder.filter(id => ids.has(id));
+  active.forEach(p => { if (!order.includes(p.id)) order.push(p.id); });
+  return order.map(player);
+}
+function setBattingSlot(id, slot) {
+  const order = battingLineup().map(p => p.id).filter(x => x !== id);
+  order.splice(slot, 0, id);
+  state.battingOrder = order.concat(state.battingOrder.filter(x => !order.includes(x)));
+}
+
+// Put `id` (or nobody) at `pos` in inning j. If `id` was already playing somewhere, the old
+// occupant of `pos` takes their spot; otherwise the old occupant goes to the bench.
+function setPositionPlayer(j, pos, id) {
+  const l = state.game[j], prev = l[pos];
+  if (prev === id) return;
+  const from = id != null ? posOf(l, id) : null;
+  l[pos] = id;
+  if (from) l[from] = prev;
+}
+function setPlayerPosition(j, id, pos) {
+  if (pos) setPositionPlayer(j, pos, id);
+  else { const from = posOf(state.game[j], id); if (from) state.game[j][from] = null; }
+}
+
+function deletePlayer(id) {
+  state.battingOrder = state.battingOrder.filter(x => x !== id);
+  state.players = state.players.filter(p => p.id !== id);
+  POS_IDS.forEach(pos => { state.depth[pos] = state.depth[pos].filter(x => x !== id); });
+  state.game.forEach(l => POS_IDS.forEach(pos => { if (l[pos] === id) l[pos] = null; }));
+}
+
+function loadSample() {
+  const names = ['Mike', 'Dave', 'Chris', 'Tony', 'Jake', 'Ryan', 'Steve', 'Matt', 'Joe', 'Kevin', 'Brian', 'Nick', 'Sam'];
+  const nums = ['7', '22', '3', '44', '11', '5', '19', '8', '31', '14', '27', '2', '9'];
+  const s = defaultState();
+  s.players = names.map((name, i) => ({ id: i + 1, name, num: nums[i], active: true, always: false }));
+  s.nextId = names.length + 1;
+  const depth = {
+    P: ['Mike', 'Steve'], C: ['Dave', 'Sam', 'Kevin'], '1B': ['Tony', 'Brian', 'Sam'], '2B': ['Jake', 'Nick', 'Sam'],
+    SS: ['Chris', 'Jake', 'Ryan'], '3B': ['Ryan', 'Chris', 'Tony'], LF: ['Matt', 'Nick', 'Joe'],
+    LCF: ['Steve', 'Nick', 'Joe'], RCF: ['Joe', 'Kevin', 'Brian'], RF: ['Kevin', 'Brian', 'Joe'],
+  };
+  POS_IDS.forEach(pos => { s.depth[pos] = depth[pos].map(nm => names.indexOf(nm) + 1); });
+  s.ofPlatoon = state.ofPlatoon;
+  state = s;
+}
+
+// Tap-to-swap (also used by drag & drop).
+function handleTarget(kind, key) {
+  const L = state.game[ui.inning];
+  const s = ui.selection;
+  const t = { kind, key };
+  if (!s) { if (kind !== 'bench-zone') ui.selection = t; return render(); }
+  if (s.kind === kind && s.key === key) { ui.selection = null; return render(); }
+  if (s.kind === 'pos' && kind === 'pos') [L[s.key], L[key]] = [L[key], L[s.key]];
+  else if (s.kind === 'pos' && kind === 'bench') L[s.key] = Number(key);
+  else if (s.kind === 'bench' && kind === 'pos') L[key] = Number(s.key);
+  else if (s.kind === 'pos' && kind === 'bench-zone') L[s.key] = null;
+  else if (s.kind === 'bench' && kind === 'bench') { ui.selection = t; return render(); }
+  else { ui.selection = null; return render(); }
+  ui.selection = null;
+  autoFillAfter(ui.inning);
+  save(); render();
+}
+
+function download(filename, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  a.download = filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---------- Events ----------
+function init() {
+  document.querySelector('nav').addEventListener('click', e => {
+    const b = e.target.closest('button[data-tab]');
+    if (b) { ui.tab = b.dataset.tab; ui.selection = null; render(); }
+  });
+
+  // Roster
+  const roster = $('#tab-roster');
+  roster.addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('#add-name');
+    if (!input.value.trim()) return;
+    addPlayers(input.value); save(); render();
+    $('#add-name').focus();
+  });
+  roster.addEventListener('change', e => {
+    const el = e.target, act = el.dataset.act, p = player(Number(el.dataset.id));
+    if (act === 'import') {
+      const file = el.files[0]; if (!file) return;
+      file.text().then(txt => {
+        try {
+          const s = JSON.parse(txt);
+          if (!Array.isArray(s.players)) throw new Error('bad file');
+          const d = defaultState();
+          state = { ...d, ...s, depth: { ...d.depth, ...(s.depth || {}) } };
+          save(); render();
+        } catch (err) { alert("That doesn't look like a Rotation Builder backup file."); }
+      });
+      return;
+    }
+    if (!p) return;
+    if (act === 'active') p.active = el.checked;
+    if (act === 'always') p.always = el.checked;
+    if (act === 'name') p.name = el.value.trim() || p.name;
+    if (act === 'num') p.num = el.value.trim();
+    if (act === 'platoon') p.platoon = el.value;
+    save(); render();
+  });
+  roster.addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'delete') {
+      const p = player(Number(b.dataset.id));
+      if (confirm(`Remove ${p.name} from the roster?`)) { deletePlayer(p.id); save(); render(); }
+    }
+    if (act === 'sample' && (!state.players.length || confirm('Replace your roster and depth chart with the sample team?'))) { loadSample(); save(); render(); }
+    if (act === 'export') download(`softball-rotation-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2));
+    if (act === 'reset' && confirm('Delete all players, the depth chart, and the rotation?')) { state = defaultState(); save(); render(); }
+  });
+
+  // Depth chart
+  const depth = $('#tab-depth');
+  depth.addEventListener('click', e => {
+    // Buttons only: the "+ Add player" selects also carry data-act, and re-rendering on their click closes them.
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const { act, pos } = b.dataset, idx = Number(b.dataset.idx), list = state.depth[pos];
+    if (act === 'jump') {
+      const card = document.getElementById(`depth-${pos}`);
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1200);
+      return;
+    }
+    if (act === 'up' && idx > 0) [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]];
+    if (act === 'down' && idx < list.length - 1) [list[idx + 1], list[idx]] = [list[idx], list[idx + 1]];
+    if (act === 'remove') list.splice(idx, 1);
+    save(); render();
+  });
+  depth.addEventListener('change', e => {
+    const el = e.target;
+    if (el.dataset.act === 'add' && el.value) { state.depth[el.dataset.pos].push(Number(el.value)); save(); render(); }
+  });
+
+  // Game
+  const game = $('#tab-game');
+  game.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (b) {
+      const act = b.dataset.act;
+      if (act === 'inning') { ui.inning = Number(b.dataset.i); ui.selection = null; render(); }
+      if (act === 'view') { ui.gridView = b.dataset.view; render(); }
+      if (act === 'order') { state.tableOrder = b.dataset.order; save(); render(); }
+      if (act === 'generate') { generateRotation(0); ui.selection = null; save(); render(); }
+      if (act === 'replan') { generateRotation(ui.inning); ui.selection = null; save(); render(); }
+      if (act === 'clear-game' && confirm('Clear the whole rotation?')) { state.game = []; ui.selection = null; save(); render(); }
+      if (act === 'print') window.print();
+      return;
+    }
+    const t = e.target.closest('[data-kind]');
+    if (t) handleTarget(t.dataset.kind, t.dataset.key);
+  });
+  game.addEventListener('change', e => {
+    const el = e.target;
+    if (el.dataset.act === 'label') { state.gameLabel = el.value; save(); }
+    if (el.dataset.act === 'cell-player' || el.dataset.act === 'cell-pos') {
+      const j = Number(el.dataset.j);
+      if (el.dataset.act === 'cell-player') setPlayerPosition(j, Number(el.dataset.id), el.value);
+      else setPositionPlayer(j, el.dataset.pos, el.value ? Number(el.value) : null);
+      // Table edits are for fine-tuning: they only change this one cell, never the innings after it.
+      ui.inning = j; ui.selection = null;
+      save(); render();
+    }
+    if (el.dataset.act === 'bat') { setBattingSlot(Number(el.dataset.id), Number(el.value)); save(); render(); }
+    if (el.dataset.act === 'autofill') {
+      state.autoFill = el.checked;
+      autoFillAfter(ui.inning);
+      save(); render();
+    }
+    if (el.dataset.act === 'platoon-toggle') {
+      state.ofPlatoon = el.checked;
+      if (hasGame()) generateRotation(0);
+      ui.selection = null;
+      save(); render();
+    }
+    if (el.dataset.act === 'innings') {
+      const old = state.innings, had = hasGame();
+      state.innings = Number(el.value);
+      normalizeGame();
+      if (had && state.innings > old) generateRotation(old);
+      save(); render();
+    }
+  });
+  game.addEventListener('dragstart', e => {
+    const t = e.target.closest('[data-kind]'); if (!t) return;
+    ui.drag = { kind: t.dataset.kind, key: t.dataset.key };
+    e.dataTransfer.setData('text/plain', t.dataset.key);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  game.addEventListener('dragover', e => { if (ui.drag && e.target.closest('[data-kind]')) e.preventDefault(); });
+  game.addEventListener('drop', e => {
+    const t = e.target.closest('[data-kind]');
+    if (!ui.drag || !t) return;
+    e.preventDefault();
+    ui.selection = ui.drag; ui.drag = null;
+    handleTarget(t.dataset.kind, t.dataset.key);
+  });
+  game.addEventListener('dragend', () => { ui.drag = null; });
+
+  window.addEventListener('beforeprint', () => { ui.printing = true; render(); });
+  window.addEventListener('afterprint', () => { ui.printing = false; render(); });
+
+  if (state.players.length) ui.tab = hasGame() ? 'game' : 'roster';
+  render();
+}
+
+if (typeof document !== 'undefined') init();
+</script>
+</body>
+</html>
