@@ -1,4 +1,4 @@
-# 🥎 Softball Rotation Builder
+# Softball Rotation Builder
 
 A single-page web app for building a softball depth chart and defensive rotation
 (10 fielders, 4 outfielders), with the goal that no player sits two innings in a row.
