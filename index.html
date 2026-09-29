@@ -936,7 +936,7 @@ function renderGame() {
     const bat = byBatting ? `<td class="bat edit"><select class="cell" data-act="bat" data-id="${p.id}" aria-label="Batting order for ${esc(p.name)}">${
       batting.map((_, k) => `<option value="${k}" ${k === slot ? 'selected' : ''}>${k + 1}</option>`).join('')}</select></td>` : '';
     return `<tr>${bat}<td class="name">${esc(label(p))}${p.always ? ' <span class="muted small">🔒</span>' : ''}</td>${
-      state.game.map((l, j) => playerCell(p, l, j)).join('')}<td class="tot">${setInnings - sat}</td><td class="tot">${sat}</td></tr>`;
+      state.game.map((l, j) => playerCell(p, l, j)).join('')}<td class="tot no-print">${setInnings - sat}</td><td class="tot no-print">${sat}</td></tr>`;
   };
   const byPlayer = (byBatting ? [{ title: null, players: batting }] : rowGroups(active)).map(g =>
     (g.title ? `<tr class="group"><td colspan="${n + 3}">${g.title}</td></tr>` : '') + g.players.map(playerRow).join('')).join('');
@@ -1040,7 +1040,7 @@ function renderGame() {
         </div>
         <div class="table-wrap">
           <table class="grid ${ui.gridView === 'player' ? '' : 'screen-hidden'}">
-            <thead><tr>${byBatting ? '<th title="Batting order">Bat</th>' : ''}<th>Player</th>${innHeads}<th>In</th><th>Sit</th></tr></thead>
+            <thead><tr>${byBatting ? '<th title="Batting order">Bat</th>' : ''}<th>Player</th>${innHeads}<th class="no-print">In</th><th class="no-print">Sit</th></tr></thead>
             <tbody>${byPlayer}</tbody>
           </table>
           <table class="grid ${ui.gridView === 'position' ? '' : 'screen-hidden'}">
