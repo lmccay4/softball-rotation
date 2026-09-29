@@ -131,6 +131,9 @@
   .platoon-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #f3f7f3; font-size: .88rem; }
   .platoon-panel p { margin: 0 0 4px; }
   .platoon-panel ul { margin: 6px 0 0; padding-left: 18px; color: #6a4b00; }
+  .pitch-panel .row { margin-bottom: 6px; gap: 6px; flex-wrap: nowrap; }
+  .pitch-panel .row b { min-width: 60px; }
+  .pitch-panel select { padding: 4px 6px; font-size: .88rem; }
   .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .78rem; color: var(--muted); margin-top: 8px; }
   .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; border: 1px solid #ccc; }
   .legend .l-sit::before { background: #eceeec; }
@@ -265,7 +268,8 @@ const ATTEMPTS = 400;
 
 // ---------- State ----------
 function defaultState() {
-  return { players: [], depth: Object.fromEntries(POS_IDS.map(id => [id, []])), innings: 7, game: [], nextId: 1, gameLabel: '', ofPlatoon: false, autoFill: false, battingOrder: [], tableOrder: 'batting' };
+  return { players: [], depth: Object.fromEntries(POS_IDS.map(id => [id, []])), innings: 7, game: [], nextId: 1, gameLabel: '', ofPlatoon: false, autoFill: false, battingOrder: [], tableOrder: 'batting',
+    pitchPlatoon: false, pitchers: [null, null], starterInnings: 4 };
 }
 function load() {
   try {
@@ -362,6 +366,28 @@ function platoonSide(p) {
   const o = p.platoon || 'auto';
   return o === 'auto' ? autoPlatoonSide(p) : o === 'none' ? null : o;
 }
+// Pitcher platoon: the manager's picks for starter and reliever, else the top two available on the P depth chart.
+// With only one pitcher available, they pitch the whole game.
+function pitchers() {
+  const pick = id => (id != null && player(id)?.active ? id : null);
+  const chosen = state.pitchers.map(pick);
+  const chart = state.depth.P.filter(pick);
+  const autoStarter = chart.find(id => id !== chosen[1]) ?? null;
+  const starter = chosen[0] ?? autoStarter;
+  const autoReliever = chart.find(id => id !== starter) ?? null;
+  const reliever = chosen[1] != null && chosen[1] !== starter ? chosen[1] : autoReliever;
+  return { starter, reliever, chosen, autoStarter, autoReliever };
+}
+const starterInnings = () => Math.max(1, Math.min(state.starterInnings, state.innings - 1));
+// Who pitches each inning (null = no pitcher planned, so P is filled like any other spot).
+function moundPlan() {
+  if (!state.pitchPlatoon) return Array(state.innings).fill(null);
+  const { starter, reliever } = pitchers(), k = starterInnings();
+  return Array.from({ length: state.innings }, (_, i) => (i < k ? starter ?? reliever : reliever ?? starter));
+}
+// Tonight's pitchers stay out of the outfield platoon so it never pulls them off the mound.
+const pitcherIds = () => new Set(moundPlan().filter(id => id != null));
+
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
@@ -403,7 +429,7 @@ function rotatePlatoon(side, members, prev, lineup, i, lastSat, sitCount, rnd) {
 }
 
 // One randomized attempt. Innings before kept.length are left untouched (used for mid-game re-planning).
-function buildAttempt(kept, ids, always) {
+function buildAttempt(kept, ids, always, mound) {
   const lineups = kept.map(l => ({ ...l }));
   const sitCount = {}, lastSat = {}, rnd = {};
   ids.forEach(id => { sitCount[id] = 0; lastSat[id] = -99; rnd[id] = Math.random(); });
@@ -411,14 +437,16 @@ function buildAttempt(kept, ids, always) {
     const on = new Set(Object.values(l));
     ids.forEach(id => { if (!on.has(id)) { sitCount[id]++; lastSat[id] = i; } });
   });
+  const pitching = new Set(mound.filter(id => id != null));
   const platoons = state.ofPlatoon
-    ? splitPlatoons(ids.filter(id => !always.has(id)), lineups[lineups.length - 1])
+    ? splitPlatoons(ids.filter(id => !always.has(id) && !pitching.has(id)), lineups[lineups.length - 1])
     : { L: [], R: [] };
   const inPlatoon = new Set([...platoons.L, ...platoons.R]);
   let score = 0;
   for (let i = lineups.length; i < state.innings; i++) {
     const prev = lineups[i - 1] || {};
     const lineup = emptyLineup();
+    if (mound[i] != null) lineup.P = mound[i];
     if (state.ofPlatoon) {
       PLATOON_SIDES.forEach(side => rotatePlatoon(side, platoons[side.key], prev, lineup, i, lastSat, sitCount, rnd));
     }
@@ -458,9 +486,10 @@ function generateRotation(fromInning = 0) {
   const ids = active.map(p => p.id);
   const always = new Set(active.filter(p => p.always).map(p => p.id));
   const kept = state.game.slice(0, fromInning);
+  const mound = moundPlan();
   let best = null;
   for (let t = 0; t < ATTEMPTS; t++) {
-    const a = buildAttempt(kept, ids, always);
+    const a = buildAttempt(kept, ids, always, mound);
     if (!best || a.score < best.score) best = a;
   }
   state.game = best.lineups;
@@ -540,6 +569,7 @@ function fieldSVG(platoonArrows = false) {
 // Is this player a sensible fit at pos? (On the depth chart there, or a platoon outfielder on their side.)
 function fitsPosition(id, pos) {
   if (state.depth[pos].includes(id)) return true;
+  if (pos === 'P' && pitcherIds().has(id)) return true;
   const side = state.ofPlatoon && PLATOON_SIDES.find(s => s.entry === pos || s.exit === pos);
   const ps = side && platoonSide(player(id));
   return !!side && (ps === side.key || ps === 'E');
@@ -549,16 +579,17 @@ const SIDE_LABEL = { L: 'Left', R: 'Right', E: 'Either side' };
 
 // Who's in each platoon for the current roster, and how the sides will likely balance.
 function platoonPreview() {
-  const L = [], R = [], E = [], excluded = [];
+  const L = [], R = [], E = [], excluded = [], pitching = [], mound = pitcherIds();
   activePlayers().forEach(p => {
     const s = platoonSide(p);
     if (!s) return;
     if (p.always) excluded.push(p);
+    else if (mound.has(p.id)) pitching.push(p);
     else ({ L, R, E })[s].push(p);
   });
   let l = L.length, r = R.length;
   E.forEach(() => { if (l <= r) l++; else r++; });
-  return { L, R, E, excluded, sizes: { L: l, R: r } };
+  return { L, R, E, excluded, pitching, sizes: { L: l, R: r } };
 }
 
 function platoonPanelHTML() {
@@ -573,6 +604,7 @@ function platoonPanelHTML() {
     return `No ${s.name.toLowerCase()}-side outfielders. ${s.entry} and ${s.exit} are filled from the rest of the team.`;
   }).filter(Boolean);
   if (pv.excluded.length) notes.push(`${names(pv.excluded)} ${pv.excluded.length === 1 ? 'is' : 'are'} marked “Never sits”, so they’re left out of the platoon.`);
+  if (pv.pitching.length) notes.push(`Tonight’s pitcher${pv.pitching.length === 1 ? '' : 's'} (${names(pv.pitching)}) stay${pv.pitching.length === 1 ? 's' : ''} out of the platoon.`);
   return `<div class="platoon-panel">
     <p><b>Left</b> (LCF → LF → sit): ${names(pv.L)}</p>
     <p><b>Right</b> (RF → RCF → sit): ${names(pv.R)}</p>
@@ -583,9 +615,38 @@ function platoonPanelHTML() {
   </div>`;
 }
 
-// Group rotation-grid rows by platoon, each sorted by when the player first comes in so the pattern reads as a staircase.
+// "innings 1–4" / "inning 7"
+const inningSpan = (a, b) => (a === b ? `inning ${a}` : `innings ${a}–${b}`);
+
+function pitchPanelHTML() {
+  const pp = pitchers(), n = state.innings, k = starterInnings();
+  const opts = (slot, auto) => `<option value="">Auto${auto != null ? `: ${esc(player(auto).name)}` : ''}</option>` +
+    activePlayers().map(p => `<option value="${p.id}" ${pp.chosen[slot] === p.id ? 'selected' : ''}>${esc(label(p))}</option>`).join('');
+  const notes = [];
+  if (pp.starter == null && pp.reliever == null) notes.push('Nobody available is listed at P on the depth chart. Pick a starter above, or add pitchers on the Depth Chart tab.');
+  else if (pp.starter == null || pp.reliever == null) notes.push(`Only one pitcher available, so ${esc(player(pp.starter ?? pp.reliever).name)} pitches the whole game. Pick a reliever above, or add another pitcher to the depth chart.`);
+  return `<div class="platoon-panel pitch-panel">
+    <div class="row"><b>Starter</b><select data-act="pitcher" data-slot="0" aria-label="Starting pitcher">${opts(0, pp.autoStarter)}</select>
+      innings <select data-act="starter-innings" aria-label="Innings the starter pitches">${
+        Array.from({ length: n - 1 }, (_, j) => `<option value="${j + 1}" ${j + 1 === k ? 'selected' : ''}>${j ? `1–${j + 1}` : '1'}</option>`).join('')}</select></div>
+    <div class="row"><b>Reliever</b><select data-act="pitcher" data-slot="1" aria-label="Relief pitcher">${opts(1, pp.autoReliever)}</select>
+      innings ${k + 1 === n ? n : `${k + 1}–${n}`}</div>
+    <p class="muted small" style="margin-top:6px">Auto picks the top two here tonight on the P depth chart. When they’re not pitching, they play another spot or take a turn sitting.${
+      ui.inning > 0 && hasGame() ? ` Changes here re-plan from inning ${ui.inning + 1} on; earlier innings stay as they are.` : ''}</p>
+    ${notes.length ? `<ul>${notes.map(x => `<li>${x}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+// Group rotation-grid rows: pitchers first (when platooning pitchers), then each outfield platoon sorted by
+// when the player first comes in so the pattern reads as a staircase, then everyone else.
 function rowGroups(active) {
-  if (!state.ofPlatoon) return [{ title: null, players: active }];
+  const mound = moundPlan(), k = starterInnings(), n = state.innings;
+  const pitcherRows = [...new Set(mound.filter(id => id != null))].map(player);
+  const pitch = { title: pitcherRows.length > 1
+      ? `Pitchers: ${esc(pitcherRows[0].name)} ${inningSpan(1, k)} → ${esc(pitcherRows[1].name)} ${inningSpan(k + 1, n)}`
+      : `Pitcher: ${esc(pitcherRows[0]?.name)}, whole game`, players: pitcherRows };
+  active = active.filter(p => !pitcherRows.includes(p));
+  if (!state.ofPlatoon) return [pitch, { title: pitcherRows.length ? 'Everyone else' : null, players: active }].filter(g => g.players.length);
   const groups = PLATOON_SIDES.map(side => ({ side, title: `${side.name} platoon: ${side.entry} → ${side.exit} → sit`, players: [] }));
   const rest = { title: 'Infield & others', players: [] };
   active.forEach(p => {
@@ -602,7 +663,7 @@ function rowGroups(active) {
     };
     players.sort((a, b) => start(a) - start(b));
   });
-  return [...groups, rest].filter(g => g.players.length);
+  return [pitch, ...groups, rest].filter(g => g.players.length);
 }
 
 function positionsFor(id) {
@@ -866,6 +927,11 @@ function renderGame() {
         <b>Outfield platoons</b>&nbsp;<span class="muted">RF → RCF → sit &nbsp;·&nbsp; LCF → LF → sit</span>
       </label>
       ${state.ofPlatoon ? platoonPanelHTML() : ''}
+      <label class="toggle" style="margin-top:12px; font-size:.9rem">
+        <input type="checkbox" data-act="pitch-toggle" ${state.pitchPlatoon ? 'checked' : ''}>
+        <b>Pitcher platoon</b>&nbsp;<span class="muted">starter, then a reliever finishes</span>
+      </label>
+      ${state.pitchPlatoon ? pitchPanelHTML() : ''}
       <p class="small" style="margin:10px 0 0">${summary}</p>
       ${impossible ? `<div class="banner bad">With ${k} sitting each inning and only ${canSit} players allowed to sit, somebody has to sit back-to-back. Allow more players to sit (uncheck “Never sits”) or play short.</div>` : ''}
     </div>
@@ -905,7 +971,7 @@ function renderGame() {
           <span class="muted">Tap any cell to change it. Picking a taken spot swaps the two players. Only that inning changes.</span>
           ${ui.gridView === 'player' ? `<div class="seg">
             <button data-act="order" data-order="batting" class="${byBatting ? 'active' : ''}">Batting order</button>
-            <button data-act="order" data-order="groups" class="${byBatting ? '' : 'active'}">${state.ofPlatoon ? 'Platoon groups' : 'Roster order'}</button>
+            <button data-act="order" data-order="groups" class="${byBatting ? '' : 'active'}">${state.ofPlatoon || state.pitchPlatoon ? 'Platoon groups' : 'Roster order'}</button>
           </div>` : ''}
         </div>
         <div class="table-wrap">
@@ -959,6 +1025,7 @@ function setPlayerPosition(j, id, pos) {
 
 function deletePlayer(id) {
   state.battingOrder = state.battingOrder.filter(x => x !== id);
+  state.pitchers = state.pitchers.map(x => (x === id ? null : x));
   state.players = state.players.filter(p => p.id !== id);
   POS_IDS.forEach(pos => { state.depth[pos] = state.depth[pos].filter(x => x !== id); });
   state.game.forEach(l => POS_IDS.forEach(pos => { if (l[pos] === id) l[pos] = null; }));
@@ -977,6 +1044,7 @@ function loadSample() {
   };
   POS_IDS.forEach(pos => { s.depth[pos] = depth[pos].map(nm => names.indexOf(nm) + 1); });
   s.ofPlatoon = state.ofPlatoon;
+  s.pitchPlatoon = state.pitchPlatoon;
   state = s;
 }
 
@@ -1116,6 +1184,23 @@ function init() {
     if (el.dataset.act === 'platoon-toggle') {
       state.ofPlatoon = el.checked;
       if (hasGame()) generateRotation(0);
+      ui.selection = null;
+      save(); render();
+    }
+    if (el.dataset.act === 'pitch-toggle') {
+      state.pitchPlatoon = el.checked;
+      if (hasGame()) generateRotation(0);
+      ui.selection = null;
+      save(); render();
+    }
+    // Changing pitchers re-plans from the selected inning, so a mid-game change keeps the innings already played.
+    if (el.dataset.act === 'pitcher' || el.dataset.act === 'starter-innings') {
+      if (el.dataset.act === 'pitcher') {
+        const slot = Number(el.dataset.slot), id = el.value ? Number(el.value) : null;
+        if (id != null && state.pitchers[1 - slot] === id) state.pitchers[1 - slot] = null;
+        state.pitchers[slot] = id;
+      } else state.starterInnings = Number(el.value);
+      if (hasGame()) generateRotation(ui.inning);
       ui.selection = null;
       save(); render();
     }
