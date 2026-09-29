@@ -4,12 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Softball Rotation Builder</title>
+<script>try { if (localStorage.getItem('softball-rotation-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
 <style>
   :root {
     --green: #2f6b3a; --grass: #4f9d52; --grass2: #5aab5d; --dirt: #c8935a;
     --bg: #f3f5f1; --card: #fff; --ink: #1d2a1f; --muted: #6b7a6d; --line: #e3e7e2;
     --bad: #d64040; --badbg: #fde2e2; --off: #fff1cc; --accent: #1f6feb;
+    --input: #fff; --chip: #fff; --greenink: #2f6b3a;
+    --border: #cfd6ce; --hover: #f0f3ef; --soft: #eef1ed; --th: #f5f7f4; --sit: #eceeec; --panel: #f3f7f3; --warnink: #6a4b00; --okbg: #e3f3e4; --okfg: #1f5a28; --badink: #8a1f1f; --note: #f0f2ef; --unset: #fafbfa; --switch: #c5ccc4; --bench: #e9ece8; --benchline: #cdd3cc; --infobg: #e8f0fe; --infofg: #1a3f8a; --help: #f7f8f6;
   }
+  /* Night mode (screen only: printing always uses the light colors) */
+  @media screen {
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #121714; --card: #1b221d; --ink: #e3eae4; --muted: #98a69a; --line: #2d372f;
+      --bad: #ff7070; --badbg: #4a1f22; --off: #473c17; --accent: #5aa2ff;
+      --input: #232b25; --chip: #27302a; --greenink: #7fc88b; --grass: #3e7f41; --grass2: #478b4a; --dirt: #9c7143;
+      --border: #3b473d; --hover: #2a342c; --soft: #2a342c; --th: #212923; --sit: #2b332d; --panel: #1f2921;
+      --warnink: #e8c56b; --okbg: #1d3a23; --okfg: #a3dcab; --badink: #ffb4b4; --note: #232b25; --unset: #181e1a;
+      --switch: #4a564c; --bench: #1f2721; --benchline: #3b473d; --infobg: #1a2b47; --infofg: #a9c8ff; --help: #212923;
+    }
+    /* Open-spot highlights keep their light pastel fills, so text on them stays dark. */
+    :root[data-theme="dark"] .chip.hl-fill, :root[data-theme="dark"] .chip.empty.hl-open { color: #1d2a1f; }
+    :root[data-theme="dark"] .hl-name { background: var(--hl-bg); border-radius: 4px; padding: 0 3px; }
+  }
+  .theme-btn { order: 3; margin-left: auto; font: inherit; font-size: .85rem; font-weight: 600; background: rgba(255,255,255,.15);
+               color: #fff; border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer; white-space: nowrap; }
+  .theme-btn:hover { background: rgba(255,255,255,.25); }
+  @media (max-width: 640px) { header h1 { order: 0; } .theme-btn { order: 1; } nav { order: 2; width: 100%; } }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
   header { background: var(--green); color: #fff; padding: 10px 16px; position: sticky; top: 0; z-index: 10;
@@ -26,23 +48,23 @@
   .muted { color: var(--muted); }
   .small { font-size: .85rem; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .btn { font: inherit; font-size: .9rem; padding: 8px 12px; border-radius: 8px; border: 1px solid #cfd6ce;
-         background: #fff; cursor: pointer; color: var(--ink); }
-  .btn:hover:not(:disabled) { background: #f0f3ef; }
+  .btn { font: inherit; font-size: .9rem; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+         background: var(--input); cursor: pointer; color: var(--ink); }
+  .btn:hover:not(:disabled) { background: var(--hover); }
   .btn:disabled { opacity: .45; cursor: default; }
   .btn.primary { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; }
   .btn.primary:hover { background: #255a2f; }
   .btn.danger { color: var(--bad); }
   .icon { font: inherit; border: 0; background: transparent; cursor: pointer; padding: 4px 7px; border-radius: 6px; color: var(--muted); }
-  .icon:hover:not(:disabled) { background: #eef1ed; color: var(--ink); }
+  .icon:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
   .icon:disabled { opacity: .25; cursor: default; }
-  input[type=text], input:not([type]), select { font: inherit; font-size: .95rem; padding: 7px 9px; border: 1px solid #cfd6ce; border-radius: 8px; background: #fff; }
+  input[type=text], input:not([type]), select { font: inherit; font-size: .95rem; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--input); color: var(--ink); }
   .badge { display: inline-block; min-width: 34px; text-align: center; background: var(--green); color: #fff;
            border-radius: 6px; padding: 2px 6px; font-size: .75rem; font-weight: 700; }
   .banner { padding: 9px 12px; border-radius: 8px; margin-top: 10px; font-size: .9rem; }
-  .banner.bad { background: var(--badbg); color: #8a1f1f; }
-  .banner.ok { background: #e3f3e4; color: #1f5a28; }
-  .banner.info { background: #e8f0fe; color: #1a3f8a; }
+  .banner.bad { background: var(--badbg); color: var(--badink); }
+  .banner.ok { background: var(--okbg); color: var(--okfg); }
+  .banner.info { background: var(--infobg); color: var(--infofg); }
 
   /* Roster */
   .player-list { list-style: none; margin: 0; padding: 0; }
@@ -70,10 +92,10 @@
   .field-wrap { position: relative; width: 100%; max-width: 560px; aspect-ratio: 1; margin: 0 auto; }
   .field-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .chip { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
-          min-width: 54px; max-width: 20%; padding: 3px 6px; border-radius: 10px; background: #fff; border: 2px solid #fff;
+          min-width: 54px; max-width: 20%; padding: 3px 6px; border-radius: 10px; background: var(--chip); border: 2px solid var(--chip);
           box-shadow: 0 2px 5px rgba(0,0,0,.25); font: inherit; font-size: .8rem; line-height: 1.15; cursor: pointer;
           color: var(--ink); user-select: none; -webkit-user-select: none; }
-  .chip small { font-size: .62rem; font-weight: 800; color: var(--green); letter-spacing: .03em; }
+  .chip small { font-size: .62rem; font-weight: 800; color: var(--greenink); letter-spacing: .03em; }
   .chip b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .chip i { font-style: normal; font-size: .62rem; color: var(--muted); white-space: nowrap; }
   .depth-field { margin-bottom: 26px; }
@@ -84,7 +106,7 @@
   .chip.bad { background: var(--badbg); border-color: var(--bad); }
   .chip.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,111,235,.5); }
   .bench { margin: 12px auto 0; max-width: 560px; min-height: 64px; padding: 10px; border-radius: 12px;
-           background: #e9ece8; border: 2px dashed #cdd3cc; }
+           background: var(--bench); border: 2px dashed var(--benchline); }
   .bench-title { font-size: .8rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
   .bench .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .bench .chip { position: static; transform: none; max-width: none; }
@@ -100,7 +122,7 @@
   .depth-grid li { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
   .depth-grid li .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .depth-grid li .nm.muted { text-decoration: line-through; }
-  .rank { width: 22px; height: 22px; border-radius: 50%; background: #eef1ed; display: inline-flex; align-items: center;
+  .rank { width: 22px; height: 22px; border-radius: 50%; background: var(--soft); display: inline-flex; align-items: center;
           justify-content: center; font-size: .75rem; font-weight: 700; flex: none; }
   .depth-grid li:first-child .rank { background: var(--green); color: #fff; }
   .depth-grid select { width: 100%; }
@@ -109,60 +131,64 @@
 
   /* Game */
   .pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
-  .pill { font: inherit; font-weight: 700; width: 40px; height: 40px; border-radius: 50%; border: 2px solid #cfd6ce;
-          background: #fff; cursor: pointer; position: relative; }
+  .pill { font: inherit; font-weight: 700; width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border);
+          background: var(--input); color: var(--ink); cursor: pointer; position: relative; }
   .pill.active { background: var(--green); border-color: var(--green); color: #fff; }
   .pill.warn::after { content: ""; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%;
-                      background: var(--bad); border: 2px solid #fff; }
+                      background: var(--bad); border: 2px solid var(--card); }
   .table-wrap { overflow-x: auto; }
   table.grid { border-collapse: collapse; width: 100%; font-size: .85rem; }
   .grid th, .grid td { border: 1px solid var(--line); padding: 6px 5px; text-align: center; }
-  .grid th { background: #f5f7f4; font-size: .8rem; }
+  .grid th { background: var(--th); font-size: .8rem; }
   .grid th.inn { cursor: pointer; }
   .grid th.cur { background: var(--green); color: #fff; }
   .grid td.cur { box-shadow: inset 2px 0 0 var(--green), inset -2px 0 0 var(--green); }
   .grid td.name { text-align: left; white-space: nowrap; font-weight: 600; }
   .grid td.pos { font-weight: 600; }
-  .grid td.sit { background: #eceeec; color: var(--muted); font-size: .75rem; }
+  .grid td.sit { background: var(--sit); color: var(--muted); font-size: .75rem; }
   .grid td.sit.bad { background: var(--badbg); color: var(--bad); font-weight: 800; }
   .grid td.off { background: var(--off); }
   .grid td.empty { background: var(--badbg); color: var(--bad); }
   .grid td.tot { color: var(--muted); }
   .grid td.sitters { font-size: .75rem; color: var(--muted); }
-  .grid tr.group td { background: #f5f7f4; text-align: left; font-size: .75rem; font-weight: 700; color: var(--green);
+  .grid tr.group td { background: var(--th); text-align: left; font-size: .75rem; font-weight: 700; color: var(--greenink);
                       text-transform: uppercase; letter-spacing: .04em; }
-  .platoon-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #f3f7f3; font-size: .88rem; }
+  .platoon-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--panel); font-size: .88rem; }
   .platoon-panel p { margin: 0 0 4px; }
-  .platoon-panel ul { margin: 6px 0 0; padding-left: 18px; color: #6a4b00; }
+  .platoon-panel ul { margin: 6px 0 0; padding-left: 18px; color: var(--warnink); }
   .pitch-panel .row { margin-bottom: 6px; gap: 6px; flex-wrap: nowrap; }
   .pitch-panel .row b { min-width: 60px; }
   .pitch-panel select { padding: 4px 6px; font-size: .88rem; }
   .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: .78rem; color: var(--muted); margin-top: 8px; }
-  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; border: 1px solid #ccc; }
-  .legend .l-sit::before { background: #eceeec; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; border: 1px solid var(--border); }
+  .legend .l-sit::before { background: var(--sit); }
   .legend .l-bad::before { background: var(--badbg); border-color: var(--bad); }
   .legend .l-off::before { background: var(--off); }
-  .seg { display: inline-flex; border: 1px solid #cfd6ce; border-radius: 8px; overflow: hidden; }
-  .seg button { font: inherit; font-size: .85rem; border: 0; background: #fff; padding: 6px 10px; cursor: pointer; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: .85rem; border: 0; background: var(--input); color: var(--ink); padding: 6px 10px; cursor: pointer; }
   .seg button.active { background: var(--green); color: #fff; }
   .status { font-size: .85rem; padding: 7px 10px; border-radius: 8px; margin-bottom: 8px; }
-  .status.ok { background: #e3f3e4; color: #1f5a28; }
-  .status.bad { background: var(--badbg); color: #8a1f1f; }
+  .status.ok { background: var(--okbg); color: var(--okfg); }
+  .status.bad { background: var(--badbg); color: var(--badink); }
   .status.bad summary { cursor: pointer; font-weight: 600; }
   .status.bad ul { margin: 6px 0 2px; padding-left: 18px; max-height: 180px; overflow-y: auto; }
-  .status.note { background: #f0f2ef; color: var(--muted); }
+  .status.note { background: var(--note); color: var(--muted); }
   .status.note summary { cursor: pointer; }
   .status.note ul { margin: 6px 0 2px; padding-left: 18px; }
   .inning-issues.neutral { color: var(--muted); }
-  .inning-issues { text-align: center; font-size: .82rem; color: #8a1f1f; margin: 4px 0 0; }
-  .grid td.unset { background: #fafbfa; }
+  .mini-btn { font: inherit; font-size: .75rem; font-weight: 600; margin-left: 8px; padding: 1px 8px; border-radius: 6px;
+              border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; vertical-align: 1px; }
+  .mini-btn:hover { background: rgba(127,127,127,.15); }
+  .status li { margin: 3px 0; }
+  .inning-issues { text-align: center; font-size: .82rem; color: var(--badink); margin: 4px 0 0; }
+  .grid td.unset { background: var(--unset); }
   .pill.unset { border-style: dashed; color: var(--muted); }
   .pill.unset.active { color: #fff; }
-  .autofill { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: #f3f7f3; margin-bottom: 12px; }
+  .autofill { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--panel); margin-bottom: 12px; }
   .autofill .muted { font-size: .82rem; margin-top: 2px; }
   .switch { position: relative; width: 42px; height: 24px; flex: none; margin-top: 1px; }
   .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-  .switch span { position: absolute; inset: 0; background: #c5ccc4; border-radius: 24px; transition: .2s; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; background: var(--switch); border-radius: 24px; transition: .2s; cursor: pointer; }
   .switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #fff;
                          border-radius: 50%; transition: .2s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
   .switch input:checked + span { background: var(--green); }
@@ -178,7 +204,7 @@
                 cursor: pointer; border-radius: 0; }
   select.cell:hover { background: rgba(31,111,235,.08); }
   select.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .grid td.bat { font-weight: 800; color: var(--green); width: 44px; }
+  .grid td.bat { font-weight: 800; color: var(--greenink); width: 44px; }
   .grid td.bat select.cell { font-weight: 800; min-width: 40px; }
   .table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: .82rem; }
 
@@ -190,7 +216,7 @@
     .chip.empty.hl-open { border-color: var(--hl-fg); background: var(--hl-bg); color: var(--hl-fg); }
     .chip.empty.hl-open small { color: var(--hl-fg); }
   }
-  .open-help { font-size: .82rem; background: #f7f8f6; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .open-help { font-size: .82rem; background: var(--help); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
   .open-help div { margin: 2px 0; }
   .open-tag { display: inline-block; min-width: 38px; text-align: center; font-weight: 800; border-radius: 6px; padding: 1px 6px; margin-right: 4px; }
   .hl-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 3px 0 8px; }
@@ -215,7 +241,7 @@
     .grid td.tot { color: #555 !important; }
     select.cell { padding: 7px 3px; }
     .table-wrap { overflow: visible; }
-    .grid th.cur { background: #f5f7f4; color: inherit; }
+    .grid th.cur { background: var(--th); color: inherit; }
     .grid td.cur { box-shadow: none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
@@ -229,6 +255,7 @@
     <button data-tab="depth">Depth Chart</button>
     <button data-tab="game">Game Rotation</button>
   </nav>
+  <button class="theme-btn" id="theme-btn" aria-pressed="false">🌙 Night</button>
 </header>
 <main>
   <section id="tab-roster"></section>
@@ -272,7 +299,7 @@ const ATTEMPTS = 400;
 // ---------- State ----------
 function defaultState() {
   return { players: [], depth: Object.fromEntries(POS_IDS.map(id => [id, []])), innings: 7, game: [], nextId: 1, gameLabel: '', ofPlatoon: false, autoFill: false, battingOrder: [], tableOrder: 'batting',
-    pitchPlatoon: false, pitchers: [null, null], starterInnings: 4 };
+    pitchPlatoon: false, pitchers: [null, null], starterInnings: 4, acceptedB2b: [] };
 }
 function load() {
   try {
@@ -284,7 +311,7 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 let state = load() || defaultState();
-const ui = { tab: 'roster', inning: 0, selection: null, drag: null, gridView: 'player', printing: false };
+const ui = { tab: 'roster', inning: 0, selection: null, drag: null, gridView: 'player', printing: false, open: {} };
 
 const player = id => state.players.find(p => p.id === id);
 const activePlayers = () => state.players.filter(p => p.active);
@@ -496,6 +523,7 @@ function generateRotation(fromInning = 0) {
     if (!best || a.score < best.score) best = a;
   }
   state.game = best.lineups;
+  state.acceptedB2b = state.acceptedB2b.filter(k => Number(k.split(':')[1]) < fromInning);
 }
 
 // ---------- Validation ----------
@@ -507,13 +535,16 @@ const inningComplete = j => POS_IDS.filter(pos => state.game[j][pos]).length >= 
 function analyze() {
   const active = activePlayers();
   const set = state.game.map(inningIsSet);
-  const sits = {}, consec = new Set(), issues = state.game.map(() => []);
+  const sits = {}, consec = new Set(), issues = state.game.map(() => []), accepted = new Set(state.acceptedB2b);
   active.forEach(p => { sits[p.id] = state.game.map((l, j) => set[j] && !posOf(l, p.id)); });
   active.forEach(p => {
     const s = sits[p.id];
     for (let j = 1; j < s.length; j++) if (s[j] && s[j - 1]) {
+      // Keyed by player and the second inning of the pair. Accepted ones are listed but not treated as problems.
+      const key = `${p.id}:${j}`, msg = `${p.name} sits innings ${j} & ${j + 1} in a row`;
+      if (accepted.has(key)) { issues[j].push({ type: 'accepted', key, msg }); continue; }
       consec.add(`${p.id}:${j}`); consec.add(`${p.id}:${j - 1}`);
-      issues[j].push({ type: 'b2b', msg: `${p.name} sits innings ${j} & ${j + 1} in a row` });
+      issues[j].push({ type: 'b2b', key, msg });
     }
   });
   const fillable = fillableCount();
@@ -525,6 +556,17 @@ function analyze() {
   });
   return { set, sits, consec, issues };
 }
+
+// Forget accepted back-to-back sits that no longer exist, so a new one in the same spot still gets flagged.
+function pruneAccepted() {
+  if (!state.acceptedB2b.length) return;
+  const live = new Set(analyze().issues.flat().filter(x => x.type === 'accepted').map(x => x.key));
+  state.acceptedB2b = state.acceptedB2b.filter(k => live.has(k));
+}
+// Accept / un-accept button for one back-to-back sit.
+const acceptBtn = x => x.type === 'accepted'
+  ? `<button class="mini-btn no-print" data-act="unaccept-b2b" data-key="${x.key}" title="Flag this back-to-back sit again">Undo</button>`
+  : `<button class="mini-btn no-print" data-act="accept-b2b" data-key="${x.key}" title="Mark this back-to-back sit as OK">Accept</button>`;
 
 // [2,3,4,6] -> "innings 2–4, 6"
 function inningsLabel(nums) {
@@ -546,6 +588,7 @@ const $ = s => document.querySelector(s);
 
 function render() {
   normalizeGame();
+  pruneAccepted();
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === ui.tab));
   document.querySelectorAll('main > section').forEach(s => { s.hidden = s.id !== `tab-${ui.tab}`; });
   if (ui.tab === 'roster') renderRoster();
@@ -794,6 +837,7 @@ function renderGame() {
   const setInnings = A.set.filter(Boolean).length;
   const unset = A.set.map((x, j) => x ? null : j + 1).filter(Boolean);
   const b2b = A.issues.flat().filter(x => x.type === 'b2b').length;
+  const accepted = A.issues.flatMap((list, j) => list.filter(x => x.type === 'accepted').map(x => ({ ...x, j })));
   const openInnings = A.issues.filter(list => list.some(x => x.type === 'empty')).length;
 
   // Compact status above the grid; details stay collapsed until asked for.
@@ -803,12 +847,15 @@ function renderGame() {
     if (b2b) parts.push(`${b2b} back-to-back sit${b2b === 1 ? '' : 's'}`);
     if (openInnings) parts.push(`${openInnings} inning${openInnings === 1 ? '' : 's'} with open spots`);
     status = parts.length
-      ? `<details class="status ${b2b ? 'bad' : 'note'}"><summary>⚠️ ${parts.join(' · ')}</summary><ul>${
-          A.issues.flatMap((list, j) => list.map(x => `<li><b>Inning ${j + 1}:</b> ${esc(x.msg)}</li>`)).join('')}</ul></details>`
-      : `<div class="status ok">✅ No back-to-back sits${unset.length ? ' so far' : ', and every position is filled'}</div>`;
+      ? `<details class="status ${b2b ? 'bad' : 'note'}" data-open-key="issues" ${ui.open.issues ? 'open' : ''}><summary>⚠️ ${parts.join(' · ')}</summary><ul>${
+          A.issues.flatMap((list, j) => list.filter(x => x.type !== 'accepted').map(x =>
+            `<li><b>Inning ${j + 1}:</b> ${esc(x.msg)}${x.type === 'b2b' ? acceptBtn(x) : ''}</li>`)).join('')}</ul></details>`
+      : `<div class="status ok">✅ ${accepted.length ? 'Back-to-back sits accepted' : 'No back-to-back sits'}${unset.length ? ' so far' : ', and every position is filled'}</div>`;
+    if (accepted.length) status += `<details class="status note" data-open-key="accepted" ${ui.open.accepted ? 'open' : ''}><summary>✓ ${accepted.length} back-to-back sit${
+      accepted.length === 1 ? '' : 's'} accepted</summary><ul>${accepted.map(x => `<li><b>Inning ${x.j + 1}:</b> ${esc(x.msg)}${acceptBtn(x)}</li>`).join('')}</ul></details>`;
     if (unset.length) status += `<div class="status note">${inningsLabel(unset).replace(/^i/, 'I')} not set yet.</div>`;
   }
-  const curB2b = A.issues[i].filter(x => x.type === 'b2b').map(x => esc(x.msg)).join(' · ');
+  const curB2b = A.issues[i].filter(x => x.type === 'b2b').map(x => `${esc(x.msg)}${acceptBtn(x)}`).join('<br>');
   const curOpen = A.set[i] ? fillableCount() - POS_IDS.filter(pos => L[pos]).length : 0;
 
   // Auto-fill switch text
@@ -907,7 +954,7 @@ function renderGame() {
     `<tr><td class="name">Sitting</td>${state.game.map((l, j) => `<td class="sitters ${j === i ? 'cur' : ''}">${
       !A.set[j] ? '' : active.filter(p => !posOf(l, p.id)).map(p => {
         const fills = j === i ? fillsFor(p.id) : [];
-        return fills.length ? `<b style="color:${openColor[fills[0]].fg}">${esc(p.name)} → ${fills.join('/')}</b>` : esc(p.name);
+        return fills.length ? `<b class="hl-name" style="color:${openColor[fills[0]].fg};${hlVars(fills[0])}">${esc(p.name)} → ${fills.join('/')}</b>` : esc(p.name);
       }).join('<br>') || '—'}</td>`).join('')}</tr>`;
 
   // Key above the table: each open spot, its color, and who could fill it.
@@ -1091,7 +1138,23 @@ function download(filename, text) {
 }
 
 // ---------- Events ----------
+// Night mode is a per-device preference, so it lives under its own key (not in the saved/exported state).
+const THEME_KEY = 'softball-rotation-theme';
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  const b = $('#theme-btn');
+  b.textContent = dark ? '☀️ Day' : '🌙 Night';
+  b.setAttribute('aria-pressed', dark);
+  b.title = dark ? 'Switch to day mode' : 'Switch to night mode';
+}
+
 function init() {
+  applyTheme(localStorage.getItem(THEME_KEY) === 'dark');
+  $('#theme-btn').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+    applyTheme(dark);
+  });
   document.querySelector('nav').addEventListener('click', e => {
     const b = e.target.closest('button[data-tab]');
     if (b) { ui.tab = b.dataset.tab; ui.selection = null; render(); }
@@ -1183,6 +1246,12 @@ function init() {
       if (act === 'replan') { generateRotation(ui.inning); ui.selection = null; save(); render(); }
       if (act === 'clear-game' && confirm('Clear the whole rotation?')) { state.game = []; ui.selection = null; save(); render(); }
       if (act === 'print') window.print();
+      if (act === 'accept-b2b' || act === 'unaccept-b2b') {
+        const key = b.dataset.key;
+        state.acceptedB2b = state.acceptedB2b.filter(k => k !== key);
+        if (act === 'accept-b2b') state.acceptedB2b.push(key);
+        save(); render();
+      }
       return;
     }
     const t = e.target.closest('[data-kind]');
@@ -1236,6 +1305,10 @@ function init() {
       save(); render();
     }
   });
+  // Remember which status panels are expanded so a re-render doesn't collapse them (toggle doesn't bubble, so capture it).
+  game.addEventListener('toggle', e => {
+    if (e.target.dataset?.openKey) ui.open[e.target.dataset.openKey] = e.target.open;
+  }, true);
   game.addEventListener('dragstart', e => {
     const t = e.target.closest('[data-kind]'); if (!t) return;
     ui.drag = { kind: t.dataset.kind, key: t.dataset.key };
